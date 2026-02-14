@@ -1,8 +1,20 @@
 [package]
 name = "justmail"
 version = "0.1.0"
+authors = ["Maris Chen <maris.chen@outlook.com>"]
 edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "justmail"
+test = false
 
 [dependencies]
 actix-web = "4.12.1"
 tokio = {version = "1.49.0", features = ["macros", "rt-multi-thread"]}
+
+[dev-dependencies]
+reqwest = "0.13.2"
