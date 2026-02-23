@@ -9,9 +9,9 @@ pub fn get_subscriber (
     env_filter: String,
 ) -> impl Subscriber + Send + Sync {
     let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+        .unwrap_or_else(|_| EnvFilter::new(env_filter));
     let formatting_layer = BunyanFormattingLayer::new(
-        "justmail".into(),
+        name,
         std::io::stdout,
     );
     Registry::default()
