@@ -22,8 +22,8 @@ pub async fn subscribe(
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
     match insert_subscriber(&from, &pool).await {
-        Ok(subscriber) => HttpResponse::Ok().finish(),
-        Err(e) => HttpResponse::InternalServerError().finish(),
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
 
