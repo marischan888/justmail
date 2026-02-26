@@ -28,12 +28,15 @@ async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
-    let port = listener.local_addr().unwrap().port();
-    let address = format!("http://127.0.0.1:{}", port);
 
     let mut config = get_configuration().expect("Failed to read configuration");
     config.database.database_name = Uuid::new_v4().to_string();
     let db_pool = configure_db(&config.database).await;
+    let address = format!(
+        "{}:{}",
+        config.application.host,
+        config.application.port
+    );
 
     let server = run(listener, db_pool.clone()).expect("Failed to bind address");
     let _ = tokio::spawn(server);
