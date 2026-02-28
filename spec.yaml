@@ -1,0 +1,35 @@
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+databases:
+  - name: newsletter
+    engine: PG
+    version: "17"
+features:
+  - buildpack-stack=ubuntu-22
+ingress:
+  rules:
+    - component:
+        name: justmail
+      match:
+        path:
+          prefix: /
+name: justmail
+region: tor1
+services:
+  - dockerfile_path: /Dockerfile
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${newsletter.DATABASE_URL}
+    github:
+      branch: main
+      deploy_on_push: true
+      repo: marischan888/justmail
+    health_check:
+      http_path: /health_check
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    name: justmail
+    source_dir: /
