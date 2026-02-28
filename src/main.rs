@@ -3,7 +3,6 @@ use std::net::TcpListener;
 use sqlx::{postgres::PgPoolOptions};
 use justmail::startup::run;
 use justmail::telemetry::{get_subscriber, init_subscriber};
-use secrecy::ExposeSecret;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
