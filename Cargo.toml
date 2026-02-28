@@ -31,12 +31,12 @@ tracing-actix-web = "0.7.21"
 version = "0.8.6"
 default-features = false
 features = [
-    "runtime-tokio",
+    "runtime-tokio-rustls",
     "macros",
     "postgres",
     "uuid",
     "chrono",
-    "migrate"
+    "migrate",
 ]
 
 [dev-dependencies]
