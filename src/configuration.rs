@@ -45,7 +45,9 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
             config::File::from(configuration_directory.join(environment.as_str())).required(true),
         )
         .add_source(
-            config::Environment::with_prefix("app").separator("__"), // dynamic env injection
+            config::Environment::with_prefix("APP")
+                .prefix_separator("_")
+                .separator("__"), // dynamic env injection
         )
         .build()?;
     settings.try_deserialize()
