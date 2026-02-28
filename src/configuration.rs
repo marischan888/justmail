@@ -85,8 +85,10 @@ impl TryFrom<String> for Environment {
 impl DatabaseSettings {
     pub fn without_db(&self) -> PgConnectOptions {
         let ssl_mode = if self.require_ssl {
+            tracing::info!("SSL is required to connect to database under production");
             PgSslMode::Require
         } else {
+            tracing::info!("SSL is prefered to database under development");
             PgSslMode::Prefer
         };
         PgConnectOptions::new()
