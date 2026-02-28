@@ -1,6 +1,6 @@
 use justmail::configuration::get_configuration;
 use std::net::TcpListener;
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{postgres::PgPoolOptions};
 use justmail::startup::run;
 use justmail::telemetry::{get_subscriber, init_subscriber};
 use secrecy::ExposeSecret;
