@@ -26,6 +26,9 @@ tracing-bunyan-formatter = "0.3.10"
 tracing-log = "0.2.0"
 secrecy = {version = "0.10.3", features = ["serde"]}
 tracing-actix-web = "0.7.21"
+unicode-segmentation = "1.12.0"
+claim = "0.5.0"
+validator = "0.20.0"
 
 [dependencies.sqlx]
 version = "0.8.6"
@@ -42,3 +45,6 @@ features = [
 [dev-dependencies]
 reqwest = "0.13.2"
 once_cell = "1.21.3"
+fake = "4.4.0"
+quickcheck = "1.1.0"
+quickcheck_macros = "1.2.0"
