@@ -4,7 +4,6 @@ use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::ConnectOptions;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 use crate::domain::SubscriberEmail;
-use crate::email_client::EmailClient;
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
@@ -17,6 +16,8 @@ pub struct Settings {
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,
+    pub auth_token: SecretBox<String>,
+    pub timeout_milliseconds: u64,
 }
 
 #[derive(serde::Deserialize)]
@@ -92,6 +93,7 @@ impl TryFrom<String> for Environment {
 }
 
 impl DatabaseSettings {
+    // connection
     pub fn without_db(&self) -> PgConnectOptions {
         let ssl_mode = if self.require_ssl {
             tracing::info!("SSL is required to connect to database under production");
@@ -117,5 +119,9 @@ impl DatabaseSettings {
 impl EmailClientSettings {
     pub fn sender(&self) -> Result<SubscriberEmail, String> {
         SubscriberEmail::parse(self.sender_email.clone())
+    }
+
+    pub fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.timeout_milliseconds)
     }
 }
