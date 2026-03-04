@@ -17,12 +17,14 @@ async fn main() -> std::io::Result<()> {
         .acquire_timeout(std::time::Duration::from_secs(2))
         .connect_lazy_with(configuration.database.with_db());
     // http email client config
-    // TODO
     let sender_email = configuration.email_client.sender()
         .expect("Invalid sender address.");
+    let timeout = configuration.email_client.timeout();
     let email_client = EmailClient::new(
         configuration.email_client.base_url,
-        sender_email
+        sender_email,
+        configuration.email_client.auth_token,
+        timeout,
     );
     let address = format!(
         "{}:{}",

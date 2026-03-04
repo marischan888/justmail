@@ -34,9 +34,12 @@ async fn spawn_app() -> TestApp {
     config.database.database_name = Uuid::new_v4().to_string();
     let db_pool = configure_db(&config.database).await;
     let sender_email = config.email_client.sender().expect("Invalid email sender");
+    let timeout = config.email_client.timeout();
     let email_client = EmailClient::new(
         config.email_client.base_url,
         sender_email,
+        config.email_client.auth_token,
+        timeout
     );
     let server = run(listener, db_pool.clone(), email_client)
         .expect("Failed to bind address");
