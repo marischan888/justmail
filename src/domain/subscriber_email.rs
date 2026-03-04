@@ -24,7 +24,7 @@ mod tests{
     use fake::faker::internet::en::SafeEmail;
     use fake::Fake;
     use crate::domain::SubscriberEmail;
-    use claim::assert_err;
+    use claims::assert_err;
     use quickcheck_macros::quickcheck;
     use fake::rand::SeedableRng;
     use fake::rand::rngs::StdRng;
