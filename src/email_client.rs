@@ -1,19 +1,19 @@
 // http client for Rest Api
 use reqwest::Client;
-use secrecy::{ExposeSecret, SecretBox};
+use secrecy::{ExposeSecret, SecretString};
 use crate::domain::SubscriberEmail;
 
 pub struct EmailClient {
     http_client: Client,
     base_url: String,
     sender_email: SubscriberEmail,
-    auth_token: SecretBox<String>,
+    auth_token: SecretString,
 }
 
 impl EmailClient {
     pub fn new(base_url: String,
                sender_email: SubscriberEmail,
-               auth_token: SecretBox<String>,
+               auth_token: SecretString,
                timeout: std::time::Duration
     ) -> Self {
         let http_client = Client::builder()
@@ -73,8 +73,8 @@ mod tests {
     use crate::email_client::{EmailClient};
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
-    use fake::{Faker, Fake};
-    use secrecy::{SecretBox};
+    use fake::{Fake, Faker};
+    use secrecy::{SecretString};
     use wiremock::matchers::{header_exists, header, path, method, any};
     use wiremock::{Mock, MockServer, ResponseTemplate, Request, Match};
 
@@ -173,7 +173,7 @@ mod tests {
         EmailClient::new(
             url,
             sender,
-            SecretBox::new(Faker.fake()),
+            SecretString::new(Faker.fake::<String>().into()),
             std::time::Duration::from_millis(200),
         )
     }
