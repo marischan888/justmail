@@ -1,4 +1,4 @@
-use crate::routes::{health_check, subscribe};
+use crate::routes::{health_check, subscribe, subscription_confirm};
 use actix_web::dev::Server;
 use actix_web::{web, web::Data, App, HttpServer};
 use sqlx::{PgPool};
@@ -12,6 +12,10 @@ pub struct Application {
     port: u16,
     server: Server,
 }
+
+// To retrieve the URL in the 'subscribe" handler
+// Retrieval from the context, in actix-web, is type-based
+pub struct ApplicationBaseUrl(pub String);
 
 impl Application {
     // why build need to be async?
@@ -38,7 +42,15 @@ impl Application {
         );
         let listener = TcpListener::bind(address)?;
         let port = listener.local_addr()?.port();
-        let server = run(listener, connection_pool, email_client)?;
+
+        let server = run
+            (
+                listener,
+                connection_pool,
+                email_client,
+                configuration.application.base_url,
+            )?;
+
         Ok(Self {port, server})
     }
 
@@ -60,19 +72,26 @@ pub fn get_connection_pool(
         .connect_lazy_with(database.with_db())
 }
 
-pub fn run(listener: TcpListener,
-           db_pool: PgPool,
-           email_client: EmailClient
+pub fn run
+(
+    listener: TcpListener,
+    db_pool: PgPool,
+    email_client: EmailClient,
+    base_url: String
 ) -> Result<Server, std::io::Error> {
     let db_pool  = Data::new(db_pool);
     let email_client = Data::new(email_client);
+    let base_url = Data::new(ApplicationBaseUrl(base_url));
+    // acrix-web spin up workers based on your cpu
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/subscriptions/confirm", web::get().to(subscription_confirm))
             .app_data(db_pool.clone()) // db connection registration
             .app_data(email_client.clone()) // http client registration
+            .app_data(base_url.clone()) // base url for app
     })
     .listen(listener)?
     .run();
