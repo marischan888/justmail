@@ -2,6 +2,7 @@ use actix_web::{HttpResponse, web};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
+use crate::routes::ConfirmationResult::NewConfirmation;
 
 #[derive(Deserialize)]
 pub struct Parameters {
@@ -30,10 +31,13 @@ pub async fn subscription_confirm(
     match subscriber_id {
         None => HttpResponse::Unauthorized().finish(),
         Some(subscriber_id) => {
-            if mark_subscriber_confirmed(&pool, subscriber_id).await.is_err() {
-                return HttpResponse::InternalServerError().finish();
+            match mark_subscriber_confirmed(&pool, subscriber_id).await {
+                Ok(ConfirmationResult::ConfirmedBefore) => {
+                    HttpResponse::Ok().body("Your subscription has been confirmed before.")
+                }
+                Ok(ConfirmationResult::NewConfirmation) => HttpResponse::Ok().finish(),
+                Err(_) => return HttpResponse::InternalServerError().finish(),
             }
-            HttpResponse::Ok().finish()
         }
     }
 }
@@ -62,6 +66,10 @@ pub async fn get_subscriber_id_from_token(
     Ok(result.map(|r| r.subscriber_id))
 }
 
+pub enum ConfirmationResult {
+    ConfirmedBefore,
+    NewConfirmation,
+}
 #[tracing::instrument
 (
     name = "Mark subscriber as confirmed",
@@ -70,9 +78,9 @@ pub async fn get_subscriber_id_from_token(
 pub async fn mark_subscriber_confirmed(
     pool: &PgPool,
     subscriber_id: Uuid
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        r#"UPDATE subscriptions SET status = 'confirmed' WHERE id = $1"#,
+) -> Result<ConfirmationResult, sqlx::Error> {
+    let result = sqlx::query!(
+        r#"UPDATE subscriptions SET status = 'confirmed' WHERE id = $1 AND status != 'confirmed'"#,
         subscriber_id,
     )
     .execute(pool)
@@ -81,5 +89,7 @@ pub async fn mark_subscriber_confirmed(
         tracing::error!("Failed to mark subscriber as confirmed: {:?}", e);
         e
     })?;
-    Ok(())
+    if result.rows_affected() == 0 {
+        Ok(ConfirmationResult::ConfirmedBefore)
+    } else {Ok(NewConfirmation)}
 }

@@ -70,3 +70,34 @@ async fn clicking_on_confirmation_link_confirms_a_subscriber() {
     assert_eq!(saved.name, "le guin");
     assert_eq!(saved.status, "confirmed");
 }
+
+#[tokio::test]
+async fn clicking_on_confirmation_link_twice() {
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body.into()).await;
+
+    let received_request = &app.email_server
+        .received_requests()
+        .await
+        .unwrap()[0];
+    let confirmation_link = app.get_confirmation_links(&received_request);
+    let confirmation_link_two = app.get_confirmation_links(&received_request);
+    // Act
+    reqwest::get(confirmation_link.html_link)
+        .await
+        .unwrap();
+
+    let second_response = reqwest::get(confirmation_link_two.html_link)
+        .await
+        .unwrap();
+    assert_eq!(second_response.status(), 200);
+    assert_eq!(second_response.text().await.unwrap(), "Your subscription has been confirmed before.");
+}
