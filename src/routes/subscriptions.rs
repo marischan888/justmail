@@ -35,6 +35,11 @@ impl TryFrom<FormData> for NewSubscriber {
     }
 }
 
+pub struct ExistingSubscriber {
+    pub subscriber_id: Uuid,
+    pub status: String,
+}
+
 #[tracing::instrument
 (
     name = "Adding a new subscriber",
@@ -65,16 +70,33 @@ pub async fn subscribe(
     };
 
     // temp handle of transaction
-    let subscriber_id = match insert_subscriber(&new_subscriber, &mut *transaction).await {
-        Ok(subscriber_id) => subscriber_id,
+    let insertion_result = match insert_subscriber(&new_subscriber, &mut *transaction).await {
+        Ok(insertion_result) => insertion_result,
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
+
+    if insertion_result.status == "confirmed" {
+        if transaction.commit().await.is_err() {
+            return HttpResponse::InternalServerError().finish();
+        }
+        return HttpResponse::Ok().body("You are already subscribed! No further action needed.");
+    }
+
+    if delete_old_token(
+        &mut *transaction,
+        insertion_result.subscriber_id
+    )
+        .await
+        .is_err()
+    {
+        return HttpResponse::InternalServerError().finish();
+    }
 
     let subscription_token = generate_subscription_token();
     if store_token
         (
             &mut *transaction,
-            subscriber_id,
+            insertion_result.subscriber_id,
             &subscription_token
         )
         .await
@@ -102,6 +124,29 @@ pub async fn subscribe(
     }
 
     HttpResponse::Ok().finish()
+}
+
+#[tracing::instrument
+(
+    name = "Removing previous token under the same subscriber",
+    skip()
+)
+]
+pub async fn delete_old_token(
+    executor: impl Executor<'_, Database = Postgres>,
+    subscriber_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM subscription_tokens WHERE subscriber_id = $1",
+        subscriber_id
+    )
+        .execute(executor)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            e
+        })?;
+    Ok(())
 }
 
 #[tracing::instrument
@@ -182,20 +227,22 @@ pub async fn send_confirmation_email(
 pub async fn insert_subscriber(
     new_subscriber: &NewSubscriber,
     executor: impl Executor<'_, Database=Postgres>,
-) -> Result<Uuid, sqlx::Error>
+) -> Result<ExistingSubscriber, sqlx::Error>
 {
     let subscriber_id = Uuid::new_v4();
-    sqlx::query!(
+    let insertion_result = sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at, status)
         VALUES ($1, $2, $3, $4, 'pending_confirmation')
+        ON CONFLICT (email) DO UPDATE SET name=EXCLUDED.name
+        RETURNING id, status
         "#,
         subscriber_id,
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(), // read-only value
         Utc::now(),
     )
-        .execute(executor)
+        .fetch_one(executor)
         .await
         .map_err(|err|
             {
@@ -203,5 +250,10 @@ pub async fn insert_subscriber(
                 err
             }
         )?;
-    Ok(subscriber_id)
+    Ok(
+        ExistingSubscriber {
+            subscriber_id: insertion_result.id,
+            status: insertion_result.status,
+        }
+    )
 }

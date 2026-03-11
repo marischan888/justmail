@@ -68,6 +68,17 @@ impl TestApp {
 
         ConfirmationLinks { html_link, plain_text }
     }
+
+    pub fn get_confirmation_link_token(&self, request: &wiremock::Request) -> String {
+        let html_link = self.get_confirmation_links(request).html_link;
+
+        // Extract the "subscription_token" parameter
+        html_link
+            .query_pairs()
+            .find(|(key, _)| key == "subscription_token")
+            .map(|(_, value)| value.into_owned())
+            .expect("Subscription token not found in the URL")
+    }
 }
 
 pub async fn spawn_app() -> TestApp {
