@@ -70,12 +70,13 @@ pub async fn subscribe(
     };
 
     // temp handle of transaction
-    let insertion_result = match insert_subscriber(&new_subscriber, &mut *transaction).await {
+    let existing_subscriber = match insert_subscriber(&new_subscriber, &mut *transaction).await {
         Ok(insertion_result) => insertion_result,
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
 
-    if insertion_result.status == "confirmed" {
+    // check status
+    if existing_subscriber.status == "confirmed" {
         if transaction.commit().await.is_err() {
             return HttpResponse::InternalServerError().finish();
         }
@@ -84,7 +85,7 @@ pub async fn subscribe(
 
     if delete_old_token(
         &mut *transaction,
-        insertion_result.subscriber_id
+        existing_subscriber.subscriber_id
     )
         .await
         .is_err()
@@ -96,7 +97,7 @@ pub async fn subscribe(
     if store_token
         (
             &mut *transaction,
-            insertion_result.subscriber_id,
+            existing_subscriber.subscriber_id,
             &subscription_token
         )
         .await
@@ -129,7 +130,7 @@ pub async fn subscribe(
 #[tracing::instrument
 (
     name = "Removing previous token under the same subscriber",
-    skip()
+    skip(executor, subscriber_id)
 )
 ]
 pub async fn delete_old_token(

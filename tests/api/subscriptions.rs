@@ -123,7 +123,6 @@ async fn subscriber_sends_a_confirmation_email_with_a_link() {
 }
 
 /*
-todo: double subscription with same email
 1. pending user will receive a new email while the old ones will be invalid
 2. confirmed user get a friendly reminder
 */
