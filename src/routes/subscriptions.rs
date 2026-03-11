@@ -94,7 +94,7 @@ pub async fn subscribe(
     }
 
     let subscription_token = generate_subscription_token();
-    if store_token
+    if store_new_token
         (
             &mut *transaction,
             existing_subscriber.subscriber_id,
@@ -156,7 +156,7 @@ pub async fn delete_old_token(
     skip(executor, subscriber_id, subscription_token),
 )
 ]
-pub async fn store_token(
+pub async fn store_new_token(
     executor: impl Executor<'_, Database=Postgres>,
     subscriber_id: Uuid,
     subscription_token: &String,
