@@ -101,3 +101,10 @@ async fn clicking_on_confirmation_link_twice() {
     assert_eq!(second_response.status(), 200);
     assert_eq!(second_response.text().await.unwrap(), "Your subscription has been confirmed before.");
 }
+
+/*
+TODO: what happen if subscription token is well-formatted but not existence? "invalid request,
+ please confirm again"
+1. Click the previous link (invalid token)
+2. Somebody else fake the token
+*/

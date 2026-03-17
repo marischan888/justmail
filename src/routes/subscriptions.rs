@@ -35,10 +35,6 @@ impl TryFrom<FormData> for NewSubscriber {
     }
 }
 
-pub struct ExistingSubscriber {
-    pub subscriber_id: Uuid,
-    pub status: String,
-}
 
 #[tracing::instrument
 (
@@ -82,16 +78,7 @@ pub async fn subscribe(
         }
         return HttpResponse::Ok().body("You are already subscribed! No further action needed.");
     }
-
-    if delete_old_token(
-        &mut *transaction,
-        existing_subscriber.subscriber_id
-    )
-        .await
-        .is_err()
-    {
-        return HttpResponse::InternalServerError().finish();
-    }
+    // Check and clear old tokens
 
     let subscription_token = generate_subscription_token();
     if store_new_token
@@ -127,28 +114,6 @@ pub async fn subscribe(
     HttpResponse::Ok().finish()
 }
 
-#[tracing::instrument
-(
-    name = "Removing previous token under the same subscriber",
-    skip(executor, subscriber_id)
-)
-]
-pub async fn delete_old_token(
-    executor: impl Executor<'_, Database = Postgres>,
-    subscriber_id: Uuid,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "DELETE FROM subscription_tokens WHERE subscriber_id = $1",
-        subscriber_id
-    )
-        .execute(executor)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to execute query: {:?}", e);
-            e
-        })?;
-    Ok(())
-}
 
 #[tracing::instrument
 (
@@ -163,11 +128,12 @@ pub async fn store_new_token(
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
-        INSERT INTO subscription_tokens (subscription_token, subscriber_id)
-        VALUES ($1, $2)
+        INSERT INTO subscription_tokens (subscription_token, subscriber_id, created_at)
+        VALUES ($1, $2, $3)
         "#,
         subscription_token,
         subscriber_id,
+        Utc::now(),
     )
         .execute(executor)
         .await
@@ -217,6 +183,11 @@ pub async fn send_confirmation_email(
             )
         )?;
     Ok(())
+}
+
+pub struct ExistingSubscriber {
+    pub subscriber_id: Uuid,
+    pub status: String,
 }
 
 #[tracing::instrument

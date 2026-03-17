@@ -29,7 +29,7 @@ pub async fn subscription_confirm(
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
     match subscriber_id {
-        None => HttpResponse::Unauthorized().finish(),
+        None => HttpResponse::Unauthorized().finish(), // None -> unauthorized or invalid
         Some(subscriber_id) => {
             match mark_subscriber_confirmed(&pool, subscriber_id).await {
                 Ok(ConfirmationResult::ConfirmedBefore) => {
@@ -42,7 +42,15 @@ pub async fn subscription_confirm(
     }
 }
 
+pub struct TokenSearchResult {
+    pub subscriber_id: Option<Uuid>,
+    pub token_existence: TokenExistence
+}
 
+pub enum TokenExistence {
+    TokenNotExist,
+    TokenCreated,
+}
 #[tracing::instrument
 (
     name = "Get subscirber_id from token",
@@ -63,6 +71,7 @@ pub async fn get_subscriber_id_from_token(
             tracing::error!("Failed to fetch subscriber_id: {:?}", e);
             e
         })?;
+
     Ok(result.map(|r| r.subscriber_id))
 }
 
