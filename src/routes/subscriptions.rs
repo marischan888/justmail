@@ -8,6 +8,7 @@ use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
 
+// TODO: How to clean up the Abandon records?
 // Generate a random 25-char-long case-sensitive token
 fn generate_subscription_token() -> String {
     let mut rng = rng();
@@ -65,20 +66,12 @@ pub async fn subscribe(
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
 
-    // temp handle of transaction
     let existing_subscriber = match insert_subscriber(&new_subscriber, &mut *transaction).await {
-        Ok(insertion_result) => insertion_result,
+        Ok(existing_subscriber) => existing_subscriber,
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
-
-    // check status
-    if existing_subscriber.status == "confirmed" {
-        if transaction.commit().await.is_err() {
-            return HttpResponse::InternalServerError().finish();
-        }
-        return HttpResponse::Ok().body("You are already subscribed! No further action needed.");
-    }
-    // Check and clear old tokens
+    
+    if existing_subscriber.status == "confirmed" {return HttpResponse::Created().finish()}
 
     let subscription_token = generate_subscription_token();
     if store_new_token
@@ -202,7 +195,7 @@ pub async fn insert_subscriber(
 ) -> Result<ExistingSubscriber, sqlx::Error>
 {
     let subscriber_id = Uuid::new_v4();
-    let insertion_result = sqlx::query!(
+    let result = sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at, status)
         VALUES ($1, $2, $3, $4, 'pending_confirmation')
@@ -223,9 +216,9 @@ pub async fn insert_subscriber(
             }
         )?;
     Ok(
-        ExistingSubscriber {
-            subscriber_id: insertion_result.id,
-            status: insertion_result.status,
+        ExistingSubscriber{
+            subscriber_id: result.id,
+            status: result.status, 
         }
     )
 }
