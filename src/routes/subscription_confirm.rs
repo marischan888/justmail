@@ -2,7 +2,6 @@ use actix_web::{HttpResponse, web};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use crate::routes::ConfirmationResult::NewConfirmation;
 
 #[derive(Deserialize)]
 pub struct Parameters {
@@ -29,40 +28,56 @@ pub async fn subscription_confirm(
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
     match subscriber_id {
-        None => HttpResponse::Unauthorized().finish(), // None -> unauthorized or invalid
+        None => HttpResponse::Unauthorized().finish(), // None -> invalid credentials
         Some(subscriber_id) => {
-            match mark_subscriber_confirmed(&pool, subscriber_id).await {
-                Ok(ConfirmationResult::ConfirmedBefore) => {
-                    HttpResponse::Ok().body("Your subscription has been confirmed before.")
-                }
-                Ok(ConfirmationResult::NewConfirmation) => HttpResponse::Ok().finish(),
-                Err(_) => return HttpResponse::InternalServerError().finish(),
+            if mark_subscriber_confirmed(&pool, subscriber_id).await.is_err(){
+                return HttpResponse::InternalServerError().finish();
             }
+            if consume_tokens(&pool, &parameters.subscription_token).await.is_err(){
+                return HttpResponse::InternalServerError().finish();
+            }
+            HttpResponse::Ok().finish()
         }
     }
 }
 
-pub struct TokenSearchResult {
-    pub subscriber_id: Option<Uuid>,
-    pub token_existence: TokenExistence
+#[tracing::instrument
+(
+    name = "Consume invalid tokens",
+    skip(pool, subscription_token)
+)
+]
+pub async fn consume_tokens(
+    pool: &PgPool,
+    subscription_token: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM subscription_tokens WHERE subscription_token = $1",
+        subscription_token
+    )
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
-pub enum TokenExistence {
-    TokenNotExist,
-    TokenCreated,
-}
 #[tracing::instrument
 (
     name = "Get subscirber_id from token",
     skip(pool, subscription_token),
-)]
+)
+]
 pub async fn get_subscriber_id_from_token(
     pool: &PgPool,
     subscription_token: &str,
 ) -> Result<Option<Uuid>, sqlx::Error> {
     // result: Record{subscriber_id}
     let result = sqlx::query!(
-        r#"SELECT subscriber_id FROM subscription_tokens WHERE subscription_token = $1"#,
+        r#"
+        SELECT subscriber_id
+        FROM subscription_tokens
+        WHERE subscription_token = $1
+        AND created_at >= now() - INTERVAL '1 day'
+        "#,
         subscription_token
     )
         .fetch_optional(pool)
@@ -75,10 +90,6 @@ pub async fn get_subscriber_id_from_token(
     Ok(result.map(|r| r.subscriber_id))
 }
 
-pub enum ConfirmationResult {
-    ConfirmedBefore,
-    NewConfirmation,
-}
 #[tracing::instrument
 (
     name = "Mark subscriber as confirmed",
@@ -87,8 +98,8 @@ pub enum ConfirmationResult {
 pub async fn mark_subscriber_confirmed(
     pool: &PgPool,
     subscriber_id: Uuid
-) -> Result<ConfirmationResult, sqlx::Error> {
-    let result = sqlx::query!(
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
         r#"UPDATE subscriptions SET status = 'confirmed' WHERE id = $1 AND status != 'confirmed'"#,
         subscriber_id,
     )
@@ -98,7 +109,5 @@ pub async fn mark_subscriber_confirmed(
         tracing::error!("Failed to mark subscriber as confirmed: {:?}", e);
         e
     })?;
-    if result.rows_affected() == 0 {
-        Ok(ConfirmationResult::ConfirmedBefore)
-    } else {Ok(NewConfirmation)}
+    Ok(())
 }

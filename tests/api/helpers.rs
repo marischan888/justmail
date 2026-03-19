@@ -32,6 +32,7 @@ pub struct TestApp {
 pub struct ConfirmationLinks {
     pub html_link: reqwest::Url,
     pub plain_text: reqwest::Url,
+    pub token: String,
 }
 
 impl TestApp {
@@ -65,19 +66,13 @@ impl TestApp {
 
         let html_link = get_link(&body["HtmlBody"].as_str().unwrap());
         let plain_text = get_link(&body["TextBody"].as_str().unwrap());
-
-        ConfirmationLinks { html_link, plain_text }
-    }
-
-    pub fn get_confirmation_link_token(&self, request: &wiremock::Request) -> String {
-        let html_link = self.get_confirmation_links(request).html_link;
-
-        // Extract the "subscription_token" parameter
-        html_link
+        let token = html_link
             .query_pairs()
             .find(|(key, _)| key == "subscription_token")
             .map(|(_, value)| value.into_owned())
-            .expect("Subscription token not found in the URL")
+            .expect("Subscription token not found in the URL");
+
+        ConfirmationLinks { html_link, plain_text, token }
     }
 }
 
