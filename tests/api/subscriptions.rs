@@ -9,13 +9,13 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     Mock::given(path("/email"))
         .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
+        .respond_with(ResponseTemplate::new(201))
         .expect(1)
         .mount(&app.email_server)
         .await;
     let response = app.post_subscriptions(body.into()).await;
 
-    assert_eq!(200, response.status().as_u16());
+    assert_eq!(201, response.status().as_u16());
 }
 
 #[tokio::test]
@@ -25,7 +25,7 @@ async fn subscribe_persist_new_subscribers() {
 
     Mock::given(path("/email"))
         .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
+        .respond_with(ResponseTemplate::new(201))
         .expect(1)
         .mount(&app.email_server)
         .await;
@@ -91,7 +91,7 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
 
     Mock::given(path("/email"))
         .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
+        .respond_with(ResponseTemplate::new(201))
         .expect(1)
         .mount(&app.email_server)
         .await;
@@ -106,7 +106,7 @@ async fn subscriber_sends_a_confirmation_email_with_a_link() {
 
     Mock::given(path("/email"))
         .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
+        .respond_with(ResponseTemplate::new(201))
         .mount(&app.email_server)
         .await;
 
@@ -121,6 +121,21 @@ async fn subscriber_sends_a_confirmation_email_with_a_link() {
     assert_eq!(raw_confirmation_link.html_link, raw_confirmation_link.plain_text);
 }
 
+// test log
+#[tokio::test]
+async fn subscribe_fails_if_there_is_a_fatal_database_error() {
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    // Act
+    sqlx::query!("ALTER TABLE subscriptions DROP COLUMN email;")
+        .execute(&app.db_pool)
+        .await
+        .unwrap();
+    let response = app.post_subscriptions(body.into()).await;
+    // Arrange
+    assert_eq!(response.status().as_u16(), 500);
+}
+
 #[tokio::test]
 async fn subscriber_will_receive_two_email_when_subscribe_twice_with_same_email() {
     let app = spawn_app().await;
@@ -128,7 +143,7 @@ async fn subscriber_will_receive_two_email_when_subscribe_twice_with_same_email(
 
     Mock::given(path("/email"))
         .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
+        .respond_with(ResponseTemplate::new(201))
         .mount(&app.email_server)
         .await;
 
@@ -157,7 +172,7 @@ async fn subscribe_twice_with_same_email_will_get_distinct_token_under_the_same_
 
     Mock::given(path("/email"))
         .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
+        .respond_with(ResponseTemplate::new(201))
         .mount(&app.email_server)
         .await;
 
@@ -235,7 +250,7 @@ async fn confirmed_subscriber_subscribe_with_same_email_results_200() {
     assert_eq!(response.status().as_u16(), 200);
 
     let post_response = app.post_subscriptions(body.into()).await;
-    assert_eq!(post_response.status(), 201);
+    assert_eq!(post_response.status(), 200);
 }
 
 #[tokio::test]
@@ -246,7 +261,7 @@ async fn confirmed_subscriber_receive_new_link_using_distinct_email() {
 
     Mock::given(path("/email"))
         .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
+        .respond_with(ResponseTemplate::new(201))
         .mount(&app.email_server)
         .await;
     // Act

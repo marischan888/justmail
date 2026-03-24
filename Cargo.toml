@@ -31,6 +31,8 @@ claims = "0.8.0"
 validator = "0.20.0"
 reqwest = {version = "0.13.2", default-features = false, features = ["json", "rustls"]}
 rand = {version = "0.10.0", features = ["std_rng"]}
+thiserror = "2.0.18"
+anyhow = "1.0.102"
 
 [dependencies.sqlx]
 version = "0.8.6"

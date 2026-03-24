@@ -12,6 +12,48 @@ async fn confirmation_without_token_are_rejected_with_a_link() {
 }
 
 #[tokio::test]
+async fn confirmation_failed_if_there_is_a_fatal_database_error() {
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    app.post_subscriptions(body.into()).await;
+    let received_request = &app.email_server
+        .received_requests()
+        .await
+        .unwrap()[0];
+    let confirmation_link = app.get_confirmation_links(&received_request);
+    // Act
+    sqlx::query!("ALTER TABLE subscription_tokens DROP COLUMN subscriber_id;")
+        .execute(&app.db_pool)
+        .await
+        .unwrap();
+    let response = reqwest::get(confirmation_link.html_link)
+        .await
+        .unwrap();
+    // Arrange
+    assert_eq!(response.status().as_u16(), 500);
+}
+
+// not a database fatal error
+#[tokio::test]
+async fn confirmation_failed_given_a_unknow_token() {
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    app.post_subscriptions(body.into()).await;
+    let received_request = &app.email_server
+        .received_requests()
+        .await
+        .unwrap()[0];
+    let mut confirmation_link = app.get_confirmation_links(&received_request).html_link;
+    confirmation_link.set_query(Some("subscription_token=haha"));
+    // Act
+    let response = reqwest::get(confirmation_link)
+        .await
+        .unwrap();
+    // Arrange
+    assert_eq!(response.status().as_u16(), 401);
+}
+
+#[tokio::test]
 async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
     // Arrange
     let app = spawn_app().await;
