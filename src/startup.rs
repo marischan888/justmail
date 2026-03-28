@@ -1,4 +1,4 @@
-use crate::routes::{health_check, subscribe, subscription_confirm};
+use crate::routes::{health_check, subscribe, subscription_confirm, publish_newsletter};
 use actix_web::dev::Server;
 use actix_web::{web, web::Data, App, HttpServer};
 use sqlx::{PgPool};
@@ -89,6 +89,7 @@ pub fn run
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(subscription_confirm))
+            .route("/newsletter", web::post().to(publish_newsletter))
             .app_data(db_pool.clone()) // db connection registration
             .app_data(email_client.clone()) // http client registration
             .app_data(base_url.clone()) // base url for app

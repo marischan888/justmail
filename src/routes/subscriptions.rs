@@ -54,6 +54,7 @@ impl Debug for SubscribeError {
     }
 }
 
+
 impl ResponseError for SubscribeError {
     fn status_code(&self) -> StatusCode {
         match self {
@@ -186,7 +187,7 @@ pub async fn send_confirmation_email(
         subscription_token);
 
     email_client.send_email(
-        receiver.email,
+        &receiver.email,
         "Welcome!",
         &format!(
             "Welcome to Maris Park!<br />\

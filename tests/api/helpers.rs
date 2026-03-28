@@ -6,6 +6,7 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use once_cell::sync::Lazy;
 use reqwest::{Response};
+use serde_json::Value;
 use wiremock::MockServer;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -36,6 +37,16 @@ pub struct ConfirmationLinks {
 }
 
 impl TestApp {
+    pub async fn post_newsletter(&self, json_body: Value) -> Response {
+        reqwest::Client::new()
+            .post(&format!("{}/newsletter", &self.address))
+            .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
+            .json(&json_body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
     pub async fn post_subscriptions(&self, body: String) -> Response {
         reqwest::Client::new()
             .post(&format!("{}/subscriptions", &self.address))
