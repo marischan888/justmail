@@ -83,8 +83,8 @@ pub fn error_chain_fmt(
     skip(from, pool, email_client, base_url),
     fields
     (
-    subscriber_email = %from.email,
-    subscriber_name = %from.name
+        subscriber_email = %from.email,
+        subscriber_name = %from.name
     )
 )
 ]

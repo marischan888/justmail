@@ -1,3 +1,5 @@
+use argon2::{Argon2, PasswordHasher, Algorithm, Params, Version};
+use argon2::password_hash::phc::SaltString;
 use linkify::{LinkFinder, LinkKind};
 use justmail::configuration::{get_configuration, DatabaseSettings};
 use justmail::startup::{get_connection_pool, Application};
@@ -28,6 +30,7 @@ pub struct TestApp {
     pub email_server: MockServer,
     // port for test in dev
     pub port: u16,
+    pub test_user: TestUser
 }
 
 pub struct ConfirmationLinks {
@@ -35,12 +38,50 @@ pub struct ConfirmationLinks {
     pub plain_text: reqwest::Url,
     pub token: String,
 }
+ pub struct TestUser {
+     pub user_id: Uuid,
+     pub username: String,
+     pub password: String,
+ }
 
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Uuid::new_v4(),
+            username: Uuid::new_v4().to_string(),
+            password: Uuid::new_v4().to_string(),
+        }
+    }
+
+    async fn store(&self, pool: &PgPool) {
+        let salt = SaltString::generate();
+        let argon2 = Argon2::new(
+            Algorithm::Argon2id,
+            Version::V0x13,
+            Params::new(15000, 2, 1, None).unwrap(),
+        );
+        let password_hash = argon2
+            .hash_password_with_salt(&salt.as_bytes(), &self.password.as_bytes())
+            .unwrap()
+            .to_string();
+
+        sqlx::query!(
+            "INSERT INTO users (user_id, username, password_hash)
+            VALUES ($1, $2, $3)",
+            self.user_id,
+            self.username,
+            password_hash
+        )
+            .execute(pool)
+            .await
+            .expect("Failed to store test user.");
+    }
+}
 impl TestApp {
     pub async fn post_newsletter(&self, json_body: Value) -> Response {
         reqwest::Client::new()
             .post(&format!("{}/newsletter", &self.address))
-            .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
+            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&json_body)
             .send()
             .await
@@ -109,12 +150,15 @@ pub async fn spawn_app() -> TestApp {
     let address = format!("http://127.0.0.1:{}", application.port());
     let _ = tokio::spawn(application.run_until_stopped());
 
-    TestApp {
+    let test_app = TestApp {
         db_pool: get_connection_pool(&configurations.database),
         address,
         email_server,
         port: application_port,
-    }
+        test_user: TestUser::generate(),
+    };
+    test_app.test_user.store(&test_app.db_pool).await;
+    test_app
 }
 
 async fn configure_db(config: &DatabaseSettings) -> PgPool {

@@ -1,4 +1,4 @@
-use crate::routes::{health_check, subscribe, subscription_confirm, publish_newsletter};
+use crate::routes::{health_check, subscribe, subscription_confirm, publish_newsletter, home};
 use actix_web::dev::Server;
 use actix_web::{web, web::Data, App, HttpServer};
 use sqlx::{PgPool};
@@ -82,7 +82,7 @@ pub fn run
     let db_pool  = Data::new(db_pool);
     let email_client = Data::new(email_client);
     let base_url = Data::new(ApplicationBaseUrl(base_url));
-    // acrix-web spin up workers based on your cpu
+    // actix-web spin up workers based on your cpu
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
@@ -90,6 +90,7 @@ pub fn run
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(subscription_confirm))
             .route("/newsletter", web::post().to(publish_newsletter))
+            .route("/", web::get().to(home))
             .app_data(db_pool.clone()) // db connection registration
             .app_data(email_client.clone()) // http client registration
             .app_data(base_url.clone()) // base url for app

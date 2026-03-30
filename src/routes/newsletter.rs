@@ -3,13 +3,18 @@ use actix_web::{web, HttpRequest, HttpResponse, ResponseError};
 use actix_web::http::{header, StatusCode};
 use actix_web::http::header::{HeaderMap, HeaderValue};
 use anyhow::Context;
-use secrecy::{SecretString};
+use secrecy::{ExposeSecret,  SecretString};
 use serde::Deserialize;
 use sqlx::{PgPool};
 use base64::{engine::general_purpose::STANDARD, engine::Engine as _};
+use argon2::{
+    password_hash::{phc::PasswordHash, PasswordVerifier},
+    Argon2,
+};
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
 use crate::routes::error_chain_fmt;
+use crate::telemetry::spawn_blocking_with_tracing;
 
 #[derive(Deserialize)]
 pub struct BodyData {
@@ -60,6 +65,11 @@ impl ResponseError for PublishNewsletterError {
 (
     name = "Send news letter email to the subscriber.",
     skip(pool, body, email_client),
+    fields
+    (
+        username=tracing::field::Empty,
+        user_id=tracing::field::Empty
+    ),
 )
 ]
 pub async fn publish_newsletter(
@@ -69,8 +79,18 @@ pub async fn publish_newsletter(
     request: HttpRequest,
 )
     -> Result<HttpResponse, PublishNewsletterError> {
-    let _credentials = extract_credentials(request.headers())
+    let credentials = extract_credentials(request.headers())
         .map_err(PublishNewsletterError::AuthError)?;
+    // record user
+    tracing::Span::current().record(
+        "username",
+        tracing::field::display(&credentials.username),
+    );
+    let user_id = validate_credentials(credentials, &pool).await?;
+    tracing::Span::current().record(
+        "user_id",
+        tracing::field::display(&user_id)
+    );
     let confirmed_subscribers = get_confirmed_subscriber(&pool)
         .await
         .context("Failed to retrieve confirmed subscribers from the database.")?; // sqlx error
@@ -167,4 +187,103 @@ fn extract_credentials(headers: &HeaderMap) -> Result<Credentials, anyhow::Error
             password: SecretString::new(password),
         }
     )
+}
+
+#[tracing::instrument
+(
+    name = "Validate Credentials",
+    skip(credentials, pool)
+)
+]
+async fn validate_credentials(
+    credentials: Credentials,
+    pool: &PgPool,
+) -> Result<uuid::Uuid, PublishNewsletterError> {
+    // generate an non-existing user as default value
+    let mut user_id = None;
+    let mut expected_password_hash = SecretString::new(
+        "$argon2id$v=19$m=15000,t=2,p=1$\
+        gZiV/M1gPc22ElAH/Jh1Hw$\
+        CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
+            .to_string()
+            .into_boxed_str()
+    );
+    if let Some((stored_user_id, stored_password_hash)) = get_stored_credentials(
+        &credentials.username,
+        pool
+    )
+        .await
+        .map_err(PublishNewsletterError::UnexpectedError)?
+    {
+        user_id = Some(stored_user_id);
+        expected_password_hash = stored_password_hash;
+    }
+
+    spawn_blocking_with_tracing(move ||
+        {
+            verify_password_hash(
+                expected_password_hash,
+                credentials.password,
+            )
+        }
+    )
+        .await
+        .context("Failed to spawn blocking task")
+        .map_err(PublishNewsletterError::UnexpectedError)??; // spawn as well as the function error
+
+    user_id.ok_or_else(|| {
+        PublishNewsletterError::AuthError(anyhow::anyhow!("Unknown username.")) // late exit
+    })
+}
+
+#[tracing::instrument
+(
+    name = "Verify password hash",
+    skip(expected_password_hash, password_hash)
+)
+]
+fn verify_password_hash(
+    expected_password_hash: SecretString,
+    password_hash: SecretString,
+) -> Result<(), PublishNewsletterError> {
+    let expected_parsed_hash = PasswordHash::new(
+        expected_password_hash.expose_secret()
+    )
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishNewsletterError::UnexpectedError)?;
+
+    Argon2::default()
+        .verify_password
+        (
+            password_hash.expose_secret().as_bytes(),
+            &expected_parsed_hash,
+        )
+        .context("Invalid password.")
+        .map_err(PublishNewsletterError::AuthError)
+}
+
+#[tracing::instrument
+(
+    name = "Get credentials from users.",
+    skip(username, pool)
+)
+]
+async fn get_stored_credentials (
+    username: &str,
+    pool: &PgPool,
+) -> Result<Option<(uuid::Uuid, SecretString)>, anyhow::Error> {
+    let record = sqlx::query!(
+        r#"
+        SELECT user_id, password_hash
+        FROM users
+        WHERE username = $1"#,
+        username,
+    )
+        .fetch_optional(pool)
+        .await
+        .context("Failed to fetch credentials from the database.")?
+        .map(|record| {
+            (record.user_id, SecretString::from(record.password_hash))
+        });
+    Ok(record)
 }
