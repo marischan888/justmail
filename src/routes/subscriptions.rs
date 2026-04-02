@@ -132,7 +132,7 @@ pub async fn subscribe(
     send_confirmation_email
         (
             &email_client,
-            new_subscriber,
+            &new_subscriber,
             &base_url.0,
             &subscription_token,
         )
@@ -176,7 +176,7 @@ pub async fn store_new_token(
 ]
 pub async fn send_confirmation_email(
     email_client: &EmailClient,
-    receiver: NewSubscriber,
+    receiver: &NewSubscriber,
     base_url: &str,
     subscription_token: &str,
 ) -> Result<(), reqwest::Error> {
@@ -185,18 +185,21 @@ pub async fn send_confirmation_email(
         "{}/subscriptions/confirm?subscription_token={}",
         base_url, // application settings
         subscription_token);
+    let html_body = format!(
+        "Welcome to our newsletter!<br />\
+         Click <a href=\"{}\">here</a> to confirm your subscription.",
+        confirmation_link
+    );
+    let plain_body = format!(
+        "Welcome to our newsletter!\nVisit {} to confirm your subscription.",
+        confirmation_link
+    );
 
     email_client.send_email(
         &receiver.email,
         "Welcome!",
-        &format!(
-            "Welcome to Maris Park!\nClick <a href=\"{}\">here</a> to confirm.",
-            confirmation_link
-        ),
-        &format!(
-            "Welcome to Maris Park!\nVisit {} to confirm your subscription!",
-            confirmation_link
-        ),
+        &html_body,
+        &plain_body,
     )
         .await
 }
