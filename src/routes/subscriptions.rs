@@ -112,7 +112,7 @@ pub async fn subscribe(
         .await
         .context("Failed to insert new subscriber into the database.")?;
 
-    if subscriber_status.status == "confirmed" {return Ok(HttpResponse::Ok().finish())}
+    //if subscriber_status.status == "confirmed" {return Ok(HttpResponse::Ok().finish())}
 
     let subscription_token = generate_subscription_token();
     store_new_token

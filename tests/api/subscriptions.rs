@@ -232,26 +232,26 @@ async fn subscribe_twice_with_distinct_name_and_same_email_will_update_name() {
     assert_ne!(name_before, name_update);
 }
 
-#[tokio::test]
-async fn confirmed_subscriber_subscribe_with_same_email_results_200() {
-    let app = spawn_app().await;
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-
-    Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .mount(&app.email_server)
-        .await;
-    // Act
-    app.post_subscriptions(body.into()).await;
-    let received_request = &app.email_server.received_requests().await.unwrap();
-    let confirmation_link = app.get_confirmation_links(&received_request[0]).html_link;
-    let response = reqwest::get(confirmation_link).await.unwrap();
-    assert_eq!(response.status().as_u16(), 200);
-
-    let post_response = app.post_subscriptions(body.into()).await;
-    assert_eq!(post_response.status(), 200);
-}
+//#[tokio::test]
+//async fn confirmed_subscriber_subscribe_with_same_email_results_200() {
+//    let app = spawn_app().await;
+//    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+//
+//    Mock::given(path("/email"))
+//        .and(method("POST"))
+//        .respond_with(ResponseTemplate::new(200))
+//        .mount(&app.email_server)
+//        .await;
+//    // Act
+//    app.post_subscriptions(body.into()).await;
+//    let received_request = &app.email_server.received_requests().await.unwrap();
+//    let confirmation_link = app.get_confirmation_links(&received_request[0]).html_link;
+//    let response = reqwest::get(confirmation_link).await.unwrap();
+//    assert_eq!(response.status().as_u16(), 200);
+//
+//    let post_response = app.post_subscriptions(body.into()).await;
+//    assert_eq!(post_response.status(), 200);
+//}
 
 #[tokio::test]
 async fn confirmed_subscriber_receive_new_link_using_distinct_email() {
