@@ -190,8 +190,7 @@ pub async fn send_confirmation_email(
         &receiver.email,
         "Welcome!",
         &format!(
-            "Welcome to Maris Park!<br />\
-            Click <a href=\"{}\">here</a> to confirm your subscription!",
+            "Welcome to Maris Park!\nClick <a href=\"{}\">here</a> to confirm.",
             confirmation_link
         ),
         &format!(
