@@ -109,6 +109,6 @@ fn verify_password_hash(
             password_hash.expose_secret().as_bytes(),
             &expected_parsed_hash,
         )
-        .context("Invalid password.")
+        .context("Invalid user password.")
         .map_err(AuthError::InvalidCredentials)
 }
