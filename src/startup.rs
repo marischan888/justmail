@@ -1,10 +1,18 @@
-use crate::routes::{health_check, subscribe, subscription_confirm, publish_newsletter, home};
 use actix_web::dev::Server;
 use actix_web::{web, web::Data, App, HttpServer};
 use sqlx::{PgPool};
 use std::net::TcpListener;
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
+use crate::routes::{
+    health_check,
+    subscribe,
+    subscription_confirm,
+    publish_newsletter,
+    home,
+    login,
+    login_form
+};
 use crate::email_client::EmailClient;
 use crate::configuration::{DatabaseSettings, Settings};
 
@@ -91,6 +99,8 @@ pub fn run
             .route("/subscriptions/confirm", web::get().to(subscription_confirm))
             .route("/newsletter", web::post().to(publish_newsletter))
             .route("/", web::get().to(home))
+            .route("/login", web::get().to(login_form))
+            .route("/login", web::post().to(login))
             .app_data(db_pool.clone()) // db connection registration
             .app_data(email_client.clone()) // http client registration
             .app_data(base_url.clone()) // base url for app
