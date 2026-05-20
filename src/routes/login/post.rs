@@ -1,6 +1,7 @@
 use actix_web::{web, HttpResponse, ResponseError};
 use actix_web::http::{StatusCode, };
 use actix_web::http::header::{LOCATION};
+use hmac::Hmac;
 use secrecy::SecretString;
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -32,10 +33,16 @@ impl ResponseError for LoginError {
         StatusCode::SEE_OTHER
     }
     fn error_response(&self) -> HttpResponse {
-        let encoded_error = urlencoding::Encoded::new(self.to_string());
-        HttpResponse::build(self.status_code())
-            .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
-            .finish()
+        let query_string = format!(
+            "error={}",
+            urlencoding::Encoded::new(self.to_string())
+        );
+        //  HttpResponse::build(self.status_code())
+        //      .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
+        //      .finish()
+        HttpResponse::Ok().finish()
+
+        // TODO
     }
 }
 

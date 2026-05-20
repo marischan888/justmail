@@ -26,13 +26,13 @@ pub struct Application {
 pub struct ApplicationBaseUrl(pub String);
 
 impl Application {
-    // why build need to be async?
     pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
         // pgpool
         let connection_pool = get_connection_pool(&configuration.database);
         // http email client config
         let sender_email = configuration
-            .email_client.sender()
+            .email_client
+            .sender()
             .expect("Invalid sender address.");
         let timeout = configuration
             .email_client
