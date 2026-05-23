@@ -37,6 +37,7 @@ pub struct ApplicationSettings {
     pub port: u16,
     pub host: String,
     pub base_url: String, // application level url
+    pub hmac_secret: SecretString, // application level secret for hmac tag
 }
 
 pub fn get_configuration() -> Result<Settings, ConfigError> {

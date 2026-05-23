@@ -49,6 +49,7 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers() {
             "plain": "Newsletter body as plain text",
         }
     });
+    // TODO: auth  for successful sending
     let response = app.post_newsletter(newsletter_request_body).await;
     // Arrange
     assert_eq!(response.status().as_u16(), 200)
@@ -123,6 +124,7 @@ async fn requests_mising_authorization_are_rejected(){
         .json(&serde_json::json!({
             "title": "Newsletter title",
             "content": {
+                "html": "<p>Newsletter body as HTML</p>",
                 "html": "<p>Newsletter body as HTML</p>",
                 "plain": "Newsletter body as plain text",
             }

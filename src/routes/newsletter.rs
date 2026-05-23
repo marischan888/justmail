@@ -75,7 +75,7 @@ pub async fn publish_newsletter(
     request: HttpRequest,
 )
     -> Result<HttpResponse, PublishNewsletterError> {
-    let credentials = extract_credentials(request.headers())
+    let credentials = basic_authentication(request.headers())
         .map_err(PublishNewsletterError::AuthError)?;
     // record user
     tracing::Span::current().record(
@@ -155,7 +155,7 @@ async fn get_confirmed_subscriber(
     Ok(confirmed_subscriber)
 }
 
-fn extract_credentials(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
+fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
     let header_value = headers
         .get("Authorization")
         .context("The 'Authorization' header was missing.")?
