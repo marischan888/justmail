@@ -1,13 +1,12 @@
 use crate::authentication::{validate_credentials, AuthError, Credentials};
 use crate::routes::error_chain_fmt;
-use crate::startup::HmacSecret;
 use actix_web::error::InternalError;
 use actix_web::http::header::LOCATION;
 use actix_web::{web, HttpResponse};
-use hmac::{Hmac, Mac};
-use secrecy::{ExposeSecret, SecretString};
+use actix_web::cookie::Cookie;
+use actix_web_flash_messages::FlashMessage;
+use secrecy::{SecretString};
 use serde::Deserialize;
-use sha2::Sha256;
 use sqlx::PgPool;
 
 #[derive(Deserialize)]
@@ -32,7 +31,7 @@ impl std::fmt::Debug for LoginError {
 
 #[tracing::instrument
 (
-    skip(form,pool,hmac_secret),
+    skip(form,pool),
     fields(
         username=tracing::field::Empty,
         user_id=tracing::field::Empty
@@ -42,7 +41,6 @@ impl std::fmt::Debug for LoginError {
 pub async fn login(
     form: web::Form<FromData>,
     pool: web::Data<PgPool>,
-    hmac_secret: web::Data<HmacSecret>,
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
         username: form.0.username,
@@ -64,23 +62,10 @@ pub async fn login(
                 AuthError::InvalidCredentials(_) => LoginError::AuthError(error.into()),
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(error.into()),
             };
-            let query_string = format!(
-                "error={}",
-                urlencoding::Encoded::new(error.to_string()),
-            );
-            let hmac_tag = {
-                type HmacSha256 = Hmac<Sha256>;
-                let mut mac = HmacSha256::new_from_slice(
-                    hmac_secret.0.expose_secret().as_bytes()
-                ).unwrap();
-                mac.update(query_string.as_bytes());
-                mac.finalize().into_bytes()
-            };
+            // Send one-time notification
+            FlashMessage::error(error.to_string()).send();
             let response = HttpResponse::SeeOther()
-                .insert_header((
-                    LOCATION,
-                    format!("/login?{}&tag={:x}", query_string, hmac_tag),
-                ))
+                .insert_header((LOCATION, "/login",))
                 .finish();
             Err(InternalError::from_response(error, response))
         }

@@ -2,7 +2,10 @@ use actix_web::dev::Server;
 use actix_web::{web, web::Data, App, HttpServer};
 use sqlx::{PgPool};
 use std::net::TcpListener;
-use secrecy::SecretString;
+use actix_web::cookie::Key;
+use actix_web_flash_messages::FlashMessagesFramework;
+use actix_web_flash_messages::storage::CookieMessageStore;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
 use crate::routes::{
@@ -96,10 +99,14 @@ pub fn run
     let db_pool  = Data::new(db_pool);
     let email_client = Data::new(email_client);
     let base_url = Data::new(ApplicationBaseUrl(base_url));
-    let hmac_secret = Data::new(HmacSecret(hmac_secret));
+    // actix-web-flash-message setup
+    let signed_key = Key::from(hmac_secret.expose_secret().as_bytes());
+    let message_store = CookieMessageStore::builder(signed_key).build();
+    let message_framework = FlashMessagesFramework::builder(message_store).build();
     // actix-web spin up workers based on your cpu
     let server = HttpServer::new(move || {
         App::new()
+            .wrap(message_framework.clone())
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
@@ -111,7 +118,6 @@ pub fn run
             .app_data(db_pool.clone()) // db connection registration
             .app_data(email_client.clone()) // http client registration
             .app_data(base_url.clone()) // base url for app
-            .app_data(hmac_secret.clone()) // hmac tag secret for app
     })
     .listen(listener)?
     .run();
