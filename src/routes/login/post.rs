@@ -8,6 +8,8 @@ use actix_web_flash_messages::FlashMessage;
 use secrecy::{SecretString};
 use serde::Deserialize;
 use sqlx::PgPool;
+use actix_session::Session;
+use crate::session_state::TypedSession;
 
 #[derive(Deserialize)]
 pub struct FromData {
@@ -31,29 +33,32 @@ impl std::fmt::Debug for LoginError {
 
 #[tracing::instrument
 (
-    skip(form,pool),
+    skip(form,pool,session),
     fields(
         username=tracing::field::Empty,
         user_id=tracing::field::Empty
     ),
-)
-]
+)]
 pub async fn login(
     form: web::Form<FromData>,
     pool: web::Data<PgPool>,
+    session: TypedSession,
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
         username: form.0.username,
         password: form.0.password
     };
-
     match validate_credentials(credentials, &pool).await {
         Ok(user_id) => {
             tracing::Span::current()
                 .record("userid", &tracing::field::display(&user_id));
+            session.renew();
+            session
+                .insert_user_id(user_id)
+                .map_err(|e| logging_redirect(LoginError::UnexpectedError(e.into())))?;
             Ok(
                 HttpResponse::SeeOther()
-                    .insert_header((LOCATION, "/"))
+                    .insert_header((LOCATION, "/admin/dashboard"))
                     .finish()
             )
         }
@@ -70,4 +75,12 @@ pub async fn login(
             Err(InternalError::from_response(error, response))
         }
     }
+}
+
+fn logging_redirect(e: LoginError) -> InternalError<LoginError> {
+    FlashMessage::error(e.to_string()).send();
+    let response = HttpResponse::SeeOther()
+        .insert_header((LOCATION, "/login"))
+        .finish();
+    InternalError::from_response(e, response)
 }

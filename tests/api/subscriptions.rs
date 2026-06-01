@@ -277,7 +277,8 @@ async fn confirmed_subscriber_receive_new_link_using_distinct_email() {
     let query_result = sqlx::query!(
         r#"
         SELECT COUNT(*) FROM subscriptions WHERE name = 'le guin'
-        "#).fetch_one(&app.db_pool).await.unwrap();
+        "#)
+        .fetch_one(&app.db_pool).await.unwrap();
     // Arrange
     assert_ne!(token_one, token_two);
     assert_eq!(query_result.count.unwrap(), 2);

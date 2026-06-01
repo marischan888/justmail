@@ -63,7 +63,7 @@ impl TestUser {
             Params::new(15000, 2, 1, None).unwrap(),
         );
         let password_hash = argon2
-            .hash_password_with_salt(&salt.as_bytes(), &self.password.as_bytes())
+            .hash_password_with_salt(&self.password.as_bytes(), salt.as_bytes())
             .unwrap()
             .to_string();
 
@@ -80,6 +80,14 @@ impl TestUser {
     }
 }
 impl TestApp {
+    pub async fn get_admin_dashboard(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/admin/dashboard", self.address))
+            .send()
+            .await
+            .expect("Failed to get admin-dashboard.")
+    }
+
     pub async fn get_login_html(&self) -> String {
         self.api_client
             .get(&format!("{}/login", &self.address))

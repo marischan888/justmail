@@ -91,12 +91,12 @@ async fn get_stored_credentials (
 #[tracing::instrument
 (
     name = "Verify password hash",
-    skip(expected_password_hash, password_hash)
+    skip(expected_password_hash, credential_password)
 )
 ]
 fn verify_password_hash(
     expected_password_hash: SecretString,
-    password_hash: SecretString,
+    credential_password: SecretString,
 ) -> Result<(), AuthError> {
     let expected_parsed_hash = PasswordHash::new(
         expected_password_hash.expose_secret()
@@ -106,7 +106,7 @@ fn verify_password_hash(
     Argon2::default()
         .verify_password
         (
-            password_hash.expose_secret().as_bytes(),
+            credential_password.expose_secret().as_bytes(),
             &expected_parsed_hash,
         )
         .context("Invalid password.")
