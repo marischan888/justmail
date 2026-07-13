@@ -46,6 +46,7 @@ pub async fn validate_credentials(
         expected_password_hash = stored_password_hash;
     }
 
+    // short time blocking for password verification
     spawn_blocking_with_tracing(move ||
         {
             verify_password_hash(

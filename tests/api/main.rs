@@ -1,7 +1,8 @@
-mod helpers;
-mod health_check;
-mod subscriptions;
-mod subscription_confirm;
-mod newsletter;
-mod login;
 mod admin_dashboard;
+mod change_password;
+mod health_check;
+mod helpers;
+mod login;
+mod newsletter;
+mod subscription_confirm;
+mod subscriptions;

@@ -51,7 +51,7 @@ impl TestUser {
         Self {
             user_id: Uuid::new_v4(),
             username: Uuid::new_v4().to_string(),
-            password: Uuid::new_v4().to_string(),
+            password: "everythinghastostartsomewhere".into(),
         }
     }
 
@@ -80,6 +80,25 @@ impl TestUser {
     }
 }
 impl TestApp {
+    pub async fn get_change_passworrd(&self) -> Response {
+        self.api_client
+            .get(&format!("{}/admin/password", &self.address))
+            .send()
+            .await
+            .expect("Failed to get change password html")
+    }
+    pub async fn post_change_password<Body>(&self, body: &Body) -> Response
+        where
+            Body: serde::Serialize
+    {
+        self.api_client
+            .post(&format!("{}/admin/password", &self.address))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to post change password request")
+    }
+
     pub async fn get_admin_dashboard(&self) -> reqwest::Response {
         self.api_client
             .get(&format!("{}/admin/dashboard", self.address))
