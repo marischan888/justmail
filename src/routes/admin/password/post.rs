@@ -44,7 +44,7 @@ pub async fn change_password(
     // short new password
     if ! ValidateLength::validate_length(&form.new_password.expose_secret(), Some(12), Some(128), None) {
         FlashMessage::error("Password should be longer than 12 characters but shorter than 128 characters.").send();
-        return Ok(see_other("/admin/password"));
+        return Ok(see_other("/admin/password"))
     }
 
     let user_id = user_id.unwrap();
@@ -64,5 +64,7 @@ pub async fn change_password(
         }
     }
     
-    todo!()
+    crate::authentication::insert_new_password(user_id, form.0.new_password, &pool).await.map_err(e500)?;
+    FlashMessage::error("Your password has been changed.").send();
+    Ok(see_other("/admin/password"))
 }

@@ -110,3 +110,48 @@ async fn the_new_password_is_too_short() {
         "<p><i>Password should be longer than 12 characters but shorter than 128 characters.</i></p>"
     ));
 }
+
+#[tokio::test]
+async fn login_using_new_password() {
+    let app = spawn_app().await;
+    let login_body = serde_json::json!(
+        {
+            "username": &app.test_user.username,
+            "password": &app.test_user.password,
+        }
+    );
+    let new_password = Uuid::new_v4().to_string();
+    let reset_body = serde_json::json!(
+        {
+            "current_password": &app.test_user.password,
+            "new_password": &new_password,
+            "check_password": &new_password,
+        }
+    );
+    // Act1: log in
+    let response = app.post_login(&login_body).await;
+    assert_is_redirect_to(&response, "/admin/dashboard");
+    // Act2: into the dashboard
+    let html = app.get_admin_dashboard().await.text().await.unwrap();
+    assert!(html.contains(&format!("Welcome {}", app.test_user.username)));
+    // Act3: change password
+    let response = app.post_change_password(&reset_body).await;
+    let html = app.get_change_passworrd().await.text().await.unwrap();
+    assert_is_redirect_to(&response, "/admin/password");
+    assert!(html.contains(r#"<p><i>Your password has been changed.</i></p>"#));
+    // Act4: log out
+    let response = app.post_logout().await;
+    assert_is_redirect_to(&response, "/login");
+    // Act5: logout message
+    let html = app.get_login_html().await;
+    assert!(html.contains(r#"<p><i>You have successfully log out.</i></p>"#));
+    // Act6: login with new password
+    let login_body = serde_json::json!(
+        {
+            "username": &app.test_user.username,
+            "password": &new_password,
+        }
+    );
+    let response = app.post_login(&login_body).await;
+    assert_is_redirect_to(&response, "/admin/dashboard");
+}
