@@ -80,6 +80,14 @@ impl TestUser {
     }
 }
 impl TestApp {
+    pub async fn post_logout(&self) -> Response {
+        self.api_client
+            .post(&format!("{}/admin/logout", &self.address))
+            .send()
+            .await
+            .expect("Failed to post logout request")
+    }
+
     pub async fn get_change_passworrd(&self) -> Response {
         self.api_client
             .get(&format!("{}/admin/password", &self.address))

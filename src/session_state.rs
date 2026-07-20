@@ -1,7 +1,7 @@
-use std::future::{ready, Ready};
 use actix_session::{Session, SessionExt, SessionGetError, SessionInsertError};
-use actix_web::{FromRequest, HttpRequest};
 use actix_web::dev::Payload;
+use actix_web::{FromRequest, HttpRequest};
+use std::future::{ready, Ready};
 use uuid::Uuid;
 
 // Session wrapper following the actix-web extractors pattern
@@ -9,6 +9,11 @@ pub struct TypedSession(Session);
 
 impl TypedSession {
     const USER_ID_KEY: &'static str = "user_id";
+
+    // delete session for both client and server side
+    pub fn purge(&self) {
+        self.0.purge();
+    }
 
     pub fn renew(&self) {
         self.0.renew();
@@ -31,3 +36,4 @@ impl FromRequest for TypedSession {
         ready(Ok(TypedSession(req.get_session())))
     }
 }
+
