@@ -1,4 +1,5 @@
 use actix_web::dev::Server;
+use actix_web::middleware::from_fn;
 use actix_web::{web, web::Data, App, HttpServer};
 use sqlx::{PgPool};
 use std::net::TcpListener;
@@ -10,6 +11,7 @@ use actix_web_flash_messages::storage::CookieMessageStore;
 use secrecy::{ExposeSecret, SecretString};
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
+use crate::authentication::{reject_anonymous_user};
 use crate::routes::{log_out, admin_dashboard, change_password_form, change_password, health_check, home, login, login_form, publish_newsletter, subscribe, subscription_confirm};
 use crate::email_client::EmailClient;
 use crate::configuration::{DatabaseSettings, Settings};
@@ -115,10 +117,14 @@ pub async fn run
             .route("/", web::get().to(home))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
-            .route("/admin/dashboard", web::get().to(admin_dashboard))
-            .route("/admin/password", web::post().to(change_password))
-            .route("/admin/password", web::get().to(change_password_form))
-            .route("/admin/logout", web::post().to(log_out))
+            .service(
+                web::scope("/admin")
+                .wrap(from_fn(reject_anonymous_user))
+                .route("/dashboard", web::get().to(admin_dashboard))
+                .route("/password", web::post().to(change_password))
+                .route("/password", web::get().to(change_password_form))
+                .route("/logout", web::post().to(log_out))
+            )
             .app_data(db_pool.clone()) // db connection registration
             .app_data(email_client.clone()) // http client registration
             .app_data(base_url.clone()) // base url for app

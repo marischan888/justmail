@@ -36,4 +36,3 @@ impl FromRequest for TypedSession {
         ready(Ok(TypedSession(req.get_session())))
     }
 }
-
