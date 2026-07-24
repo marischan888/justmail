@@ -8,7 +8,6 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use once_cell::sync::Lazy;
 use reqwest::{Response};
-use serde_json::Value;
 use wiremock::MockServer;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -137,11 +136,23 @@ impl TestApp {
             .await
             .expect("Failed to send request")
     }
-    pub async fn post_newsletter(&self, json_body: Value) -> Response {
+
+    pub async fn get_newsletter(&self) -> Response {
         self.api_client
-            .post(&format!("{}/newsletter", &self.address))
-            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
-            .json(&json_body)
+            .get(&format!("{}/admin/newsletter", &self.address))
+            .send()
+            .await
+            .expect("Failed to get newsletter html")
+    }
+
+    // migrate from json_body and basic auth to url encoded body
+    pub async fn post_newsletter<Body>(&self, body: &Body) -> Response 
+        where
+            Body: serde::Serialize
+    {
+        self.api_client
+            .post(&format!("{}/admin/newsletter", &self.address))
+            .form(body)
             .send()
             .await
             .expect("Failed to execute request.")

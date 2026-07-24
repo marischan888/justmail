@@ -61,10 +61,6 @@ pub async fn login(
                 AuthError::InvalidCredentials(_) => LoginError::AuthError(error.into()),
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(error.into()),
             };
-            // Send one-time notification
-            //FlashMessage::error(error.to_string()).send();
-            //let response = see_other("/login");
-            //Err(InternalError::from_response(error, response))
             Err(logging_redirect(error))
         }
     }

@@ -45,7 +45,7 @@ async fn new_password_must_match(){
     app.post_login(&login_body).await;
     // Act 2: reset password but failed with the distinct new password
     let response = app.post_change_password(&reset_body).await;
-    //assert_is_redirect_to(&response, "/admin/password");
+    assert_is_redirect_to(&response, "/admin/password");
     // Act 3: Follow the redirection
     let html_page = app.get_change_passworrd().await.text().await.unwrap();
     assert!(html_page.contains(

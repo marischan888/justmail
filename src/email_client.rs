@@ -96,7 +96,7 @@ mod tests {
         }
     }
 
-    // test "sending request" and "a valid resonse"
+    // test "sending request" and "a valid response"
     #[tokio::test]
     async fn send_email_send_the_expected_request() {
         // Arrange

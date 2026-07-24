@@ -12,7 +12,20 @@ use secrecy::{ExposeSecret, SecretString};
 use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
 use crate::authentication::{reject_anonymous_user};
-use crate::routes::{log_out, admin_dashboard, change_password_form, change_password, health_check, home, login, login_form, publish_newsletter, subscribe, subscription_confirm};
+use crate::routes::{
+    admin_dashboard,
+    change_password,
+    change_password_form,
+    health_check,
+    home,
+    log_out,
+    login,
+    login_form,
+    issue_newsletter_form,
+    issue_newsletter,
+    subscribe,
+    subscription_confirm
+};
 use crate::email_client::EmailClient;
 use crate::configuration::{DatabaseSettings, Settings};
 
@@ -113,7 +126,7 @@ pub async fn run
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(subscription_confirm))
-            .route("/newsletter", web::post().to(publish_newsletter))
+            //.route("/newsletter", web::post().to(publish_newsletter))
             .route("/", web::get().to(home))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
@@ -123,6 +136,8 @@ pub async fn run
                 .route("/dashboard", web::get().to(admin_dashboard))
                 .route("/password", web::post().to(change_password))
                 .route("/password", web::get().to(change_password_form))
+                .route("/newsletter", web::get().to(issue_newsletter_form))
+                .route("/newsletter", web::post().to(issue_newsletter))
                 .route("/logout", web::post().to(log_out))
             )
             .app_data(db_pool.clone()) // db connection registration

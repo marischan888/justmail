@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    body {
+      font-family: sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .footer {
+      font-size: 12px;
+      color: #777;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2>Weekly Newsletter</h2>
+    <div>
+      <!-- The user's input content goes here -->
+      {{ content_html|safe }}
+    </div>
+    <div class="footer">
+      <p>You received this because you subscribed to our newsletter.</p>
+    </div>
+  </div>
+</body>
+
+</html>

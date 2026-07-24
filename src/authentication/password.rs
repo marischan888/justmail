@@ -19,7 +19,7 @@ pub struct Credentials {
 }
 
 #[tracing::instrument(
-    name = "Change Credentials",
+    name = "Inset the new password into the db",
     skip(password, pool),
 )
 ]
