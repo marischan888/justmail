@@ -137,21 +137,21 @@ impl TestApp {
             .expect("Failed to send request")
     }
 
-    pub async fn get_newsletter(&self) -> Response {
+    pub async fn get_newsletters(&self) -> Response {
         self.api_client
-            .get(&format!("{}/admin/newsletter", &self.address))
+            .get(&format!("{}/admin/newsletters", &self.address))
             .send()
             .await
             .expect("Failed to get newsletter html")
     }
 
     // migrate from json_body and basic auth to url encoded body
-    pub async fn post_newsletter<Body>(&self, body: &Body) -> Response 
+    pub async fn post_newsletters<Body>(&self, body: &Body) -> Response 
         where
             Body: serde::Serialize
     {
         self.api_client
-            .post(&format!("{}/admin/newsletter", &self.address))
+            .post(&format!("{}/admin/newsletters", &self.address))
             .form(body)
             .send()
             .await

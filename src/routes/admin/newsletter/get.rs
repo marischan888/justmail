@@ -8,7 +8,7 @@ use crate::utils::{see_other, e500};
 (
     skip(session, flash_messages),
 )]
-pub async fn issue_newsletter_form(
+pub async fn issue_newsletters_form(
     session: TypedSession,
     flash_messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, actix_web::Error> {
@@ -20,6 +20,7 @@ pub async fn issue_newsletter_form(
     {
         writeln!(msg_html, "<p><i>{}</i></p>", msg.content()).unwrap();
     }
+    let idempotency_key = uuid::Uuid::new_v4();
 
     Ok(HttpResponse::Ok()
         .content_type(ContentType::html())
@@ -32,7 +33,7 @@ pub async fn issue_newsletter_form(
             </head>
             <body>
             {}
-            <form action="/admin/newsletter" method="post">
+            <form action="/admin/newsletters" method="post">
             <label>Title
             <input
             type="text"
@@ -49,6 +50,15 @@ pub async fn issue_newsletter_form(
             >
             </label>
             <br>
+            <label>Idempotency Key
+            <input
+            type="text"
+            name="idempotency key"
+            value="{idempotency_key}"
+            >
+            </label>
+            <br>
+            <button type="submit">Publish</button>
             </form>
             <p><a href="/admin/dashboard">Back</a></p>
             </body>

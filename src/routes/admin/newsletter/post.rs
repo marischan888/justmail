@@ -1,11 +1,10 @@
 use actix_web::{HttpResponse, web};
 use actix_web_flash_messages::FlashMessage;
-use secrecy::SecretString;
 use sqlx::PgPool;
 use askama::Template;
-use crate::authentication::{AuthError, Credentials, UserId, validate_credentials};
-use crate::routes::admin::dashboard::get_username;
-use crate::utils::{e500, see_other};
+use crate::authentication::UserId;
+use crate::idempotency::{IdempotencyKey, NextAction, save_response, try_processing};
+use crate::utils::{e500, see_other, e400};
 use crate::email_client::EmailClient;
 use crate::domain::SubscriberEmail;
 
@@ -17,56 +16,53 @@ struct NewsletterTemplate<'a> {
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
-    current_password: SecretString,
     title: String,
     content: String,
+    idempotency_key: String,
 }
+
+fn success_message() -> FlashMessage {
+    FlashMessage::info("You has issued newsletter to all your subscribers.")
+}
+
 
 #[tracing::instrument
 (
     name = "Send email to the subscriber"
-    skip(form, pool, email_client, user_id),
+    skip(form, pool, email_client),
     fields (
         user_name=tracing::field::Empty,
         user_id=tracing::field::Empty,
     ),
 )
 ]
-pub async fn issue_newsletter(
+pub async fn issue_newsletters(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
     user_id: web::ReqData<UserId>,
 ) -> Result<HttpResponse, actix_web::Error>{
+    let FormData {
+        title,
+        content,
+        idempotency_key,
+    } = form.0;
     let user_id = user_id.into_inner();
-    let user_name = get_username(*user_id, &pool).await.map_err(e500)?;
-    // record user info
-    tracing::Span::current().record(
-        "user_name",
-        tracing::field::display(&user_name),
-    );
-    tracing::Span::current().record(
-        "user_id",
-        tracing::field::display(*user_id),
-    );
-    let credential = Credentials {
-        username: user_name,
-        password: form.0.current_password,
-    };
-    if let Err(e) = validate_credentials(credential, &pool).await {
-        return match e {
-            AuthError::InvalidCredentials(_) => {
-                FlashMessage::error("Wrong current password").send();
-                Ok(see_other("/admin/newsletter"))
-            }
-            AuthError::UnexpectedError(_) => Err(e500(e).into()),
+    let idempotency_key: IdempotencyKey = idempotency_key.try_into().map_err(e400)?;
+    let transaction = match try_processing(&pool, &idempotency_key, *user_id)
+        .await
+        .map_err(e500)?
+    {
+        NextAction::StartProcessing(t) => t,
+        NextAction::ReturnSavedResponse(saved_response) => {
+            success_message().send();
+            return Ok(saved_response)
         }
-    }
+    };
     // format html
-    let plain_text = form.0.content;
-    let formatted_content = text_to_simple_html(plain_text.clone());
+    let formatted_html = text_to_simple_html(content.clone());
     let html_template = NewsletterTemplate {
-        content_html: &formatted_content,
+        content_html: &formatted_html,
     };
     let html_body = html_template.render().map_err(e500)?;
     // email client send request
@@ -75,7 +71,7 @@ pub async fn issue_newsletter(
         .map_err(e500)?;
     if confirmed_subscribers.is_empty() {
         FlashMessage::error("no confirmed subscriber").send();
-        return Ok(see_other("/admin/newsletter"))
+        return Ok(see_other("/admin/newsletters"))
     }
     for subscriber in confirmed_subscribers {
         match subscriber {
@@ -83,9 +79,9 @@ pub async fn issue_newsletter(
                 email_client
                     .send_email(
                         &subscriber.email, 
-                        &form.0.title,
+                        &title,
                         &html_body,
-                        &plain_text,
+                        &content,
                     )
                     .await
                     .map_err(e500)?;
@@ -98,8 +94,12 @@ pub async fn issue_newsletter(
             }
         }
     }
-    FlashMessage::error("You has issued newsletter to all your subscribers.").send();
-    Ok(see_other("/admin/newsletter"))
+    success_message().send();
+    let response = see_other("/admin/newsletters");
+    let response = save_response(transaction, &idempotency_key, *user_id, response)
+        .await
+        .map_err(e500)?;
+    Ok(response)
 }
 
 fn text_to_simple_html(text: String) -> String {

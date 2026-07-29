@@ -94,7 +94,7 @@ pub async fn subscribe(
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>
 ) -> Result<HttpResponse, SubscribeError> {
-    // try_into is a mirror of tru_from, directly take self do bot need to write A::try_from
+    // try_into is a mirror of thru_from, directly take self do bot need to write A::try_from
     let new_subscriber = from.0
         .try_into()
         .map_err(SubscribeError::ValidationError)?;

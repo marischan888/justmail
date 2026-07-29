@@ -8,6 +8,13 @@ where
 {
     actix_web::error::ErrorInternalServerError(e)
 }
+// Bad Request Error wrapper
+pub fn e400<T>(e: T) -> actix_web::Error
+where
+    T: std::fmt::Debug + std::fmt::Display + 'static,
+{
+    actix_web::error::ErrorBadRequest(e)
+}
 // rooute redireaction
 pub fn see_other(location: &str) -> actix_web::HttpResponse {
     HttpResponse::SeeOther()
