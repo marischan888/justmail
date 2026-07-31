@@ -25,6 +25,19 @@ services:
       timeout: 5s
       retries: 5
 
+  migrator:
+    container_name: justmail-migrator
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgres://${APP_DATABASE__USERNAME}:${APP_DATABASE__PASSWORD}@${APP_DATABASE__HOST}:${APP_DATABASE__PORT}/${APP_DATABASE__DATABASE_NAME}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - justmail
+    entrypoint: ["sqlx", "migrate", "run"]
+
   justmail:
     container_name: justmail
     build:

@@ -15,6 +15,14 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin justmail
+# Install sqlx-cli
+RUN wget --progress=dot:giga https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz \
+  && tar -xvf cargo-binstall-x86_64-unknown-linux-musl.tgz \
+  && cp cargo-binstall /usr/local/cargo/bin \
+  && rm cargo-binstall-x86_64-unknown-linux-musl.tgz
+RUN cargo binstall -y sqlx-cli \
+  && rm -rf /usr/local/cargo/registry/cache/* \
+  && rm -rf /usr/local/cargo/registry/src/*
 
 # Rumetime stage
 FROM debian:trixie-slim AS runtime
@@ -26,7 +34,10 @@ RUN apt-get update -y \
     && rm -rf /var/lib/apt/lists/*
 # copy the compiled binary from the builder to runtime env
 COPY --from=builder /app/target/release/justmail justmail
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
 # copy config files to runtime
 COPY configuration configuration
+COPY migrations migrations
+
 ENV APP_ENVIRONMENT=production
 ENTRYPOINT ["./justmail"]
