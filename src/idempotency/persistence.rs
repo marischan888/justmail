@@ -61,17 +61,16 @@ pub async fn try_processing(
 {
     let mut transaction = pool
         .begin()
-        .await
-        .context("Failed to start the transaction for idempotency.")?;
+        .await?;
     let n_rows_affected = sqlx::query!(
     r#"
-    INSERT INTO idempotency (
-        user_id,
-        idempotency_key,
-        created_at
-    )
-    VALUES ($1, $2, now())
-    ON CONFLICT DO NOTHING
+        INSERT INTO idempotency (
+            user_id,
+            idempotency_key,
+            created_at
+        )
+        VALUES ($1, $2, now())
+        ON CONFLICT DO NOTHING
     "#,
     user_id,
     idempotency_key.as_ref()
@@ -127,7 +126,7 @@ pub async fn save_response (
         headers,
         body.as_ref()
     )
-        .execute(& mut*transaction)
+        .execute(&mut *transaction)
         .await?;
     transaction.commit().await?;
     let http_response = response_head

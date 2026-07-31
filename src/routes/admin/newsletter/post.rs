@@ -94,11 +94,11 @@ pub async fn issue_newsletters(
             }
         }
     }
-    success_message().send();
     let response = see_other("/admin/newsletters");
     let response = save_response(transaction, &idempotency_key, *user_id, response)
         .await
         .map_err(e500)?;
+    success_message().send();
     Ok(response)
 }
 

@@ -64,9 +64,9 @@ pub async fn subscription_confirm(
         .await
         .context("Failed to mark subscriber as confirmed.")?;
 
-    consume_tokens(&mut *transaction, &parameters.subscription_token)
-        .await
-        .context("Failed to consume tokens from subscription token.")?;
+    //consume_tokens(&mut *transaction, &parameters.subscription_token)
+    //    .await
+    //    .context("Failed to consume tokens from subscription token.")?;
 
     transaction
         .commit()
@@ -111,7 +111,6 @@ pub async fn get_subscriber_id_from_token(
         SELECT subscriber_id
         FROM subscription_tokens
         WHERE subscription_token = $1
-        AND created_at >= now() - INTERVAL '1 day'
         "#,
         subscription_token
     )
