@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:18
+    container_name: justmail-postgres
+    environment:
+      POSTGRES_USER: ${APP_DATABASE__USERNAME}
+      POSTGRES_PASSWORD: ${APP_DATABASE__PASSWORD}
+      POSTGRES_DB: ${APP_DATABASE__DATABASE_NAME}
+    networks:
+      - justmail
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8
+    container_name: justmail-redis
+    networks:
+      - justmail
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  justmail:
+    container_name: justmail
+    build:
+      context: .
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - justmail
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.justmail.rule=Host(`justmail.bymaris.one`)"
+      - "traefik.http.routers.justmail.entrypoints=websecure"
+      - "traefik.http.services.justmail.loadbalancer.server.port=8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://justmail:8000/health_check"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  web:
+    external: true
+    name: backbone_web
+  justmail:
+    driver: bridge
