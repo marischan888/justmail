@@ -6,6 +6,8 @@ services:
       POSTGRES_USER: ${APP_DATABASE__USERNAME}
       POSTGRES_PASSWORD: ${APP_DATABASE__PASSWORD}
       POSTGRES_DB: ${APP_DATABASE__DATABASE_NAME}
+    volumes:
+      - ${DB_DATA_LOCATION}:/var/lib/postgresql
     networks:
       - justmail
     healthcheck:
@@ -13,6 +15,29 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  db-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    container_name: justmail-db-backup
+    restart: always
+    user: root
+    volumes:
+      - ${DB_BACKUP_LOCATION}:/backups
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${APP_DATABASE__DATABASE_NAME}
+      POSTGRES_USER: ${APP_DATABASE__USERNAME}
+      POSTGRES_PASSWORD: ${APP_DATABASE__PASSWORD}
+      SCHEDULE: "0 2 * * *"
+      BACKUP_KEEP_DAYS: 7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 6
+      HEALTHCHECK_PORT: 8080
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - justmail
 
   redis:
     image: redis:8
