@@ -52,8 +52,9 @@ pub async fn issue_newsletters_form(
             <br>
             <label>Idempotency Key
             <input
+            hidden
             type="text"
-            name="idempotency key"
+            name="idempotency_key"
             value="{idempotency_key}"
             >
             </label>
