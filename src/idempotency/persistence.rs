@@ -1,5 +1,4 @@
 use actix_web::{HttpResponse, body::to_bytes, http::StatusCode};
-use anyhow::Context;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
