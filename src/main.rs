@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
     // black box: not sure which task complete first
     tokio::select! {
         outcome = application_task => report_exit("API", outcome),
-        outcome = worker_task => report_exit("Background worker", outcome),
+        outcome = worker_task => report_exit("Background work", outcome),
     };
 
     Ok(())

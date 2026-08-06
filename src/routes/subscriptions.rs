@@ -112,8 +112,6 @@ pub async fn subscribe(
         .await
         .context("Failed to insert new subscriber into the database.")?;
 
-    //if subscriber_status.status == "confirmed" {return Ok(HttpResponse::Ok().finish())}
-
     let subscription_token = generate_subscription_token();
     store_new_token
         (
@@ -168,6 +166,7 @@ pub async fn store_new_token(
     Ok(())
 }
 
+//TODO: unsubscirb
 #[tracing::instrument
 (
     name = "Sending confirmation email to the subscriber",
@@ -187,11 +186,14 @@ pub async fn send_confirmation_email(
         subscription_token);
     let html_body = format!(
         "Welcome to our newsletter!<br />\
-         Click <a href=\"{}\">here</a> to confirm your subscription.",
+         Click <a href=\"{}\">here</a> to confirm your subscription.\
+        This link will be expired after 48 hours.",
         confirmation_link
     );
     let plain_body = format!(
-        "Welcome to our newsletter!\nVisit {} to confirm your subscription.",
+        "Welcome to our newsletter!\n
+        Visit {} to confirm your subscription.\n
+        This link will be expired after 48 hours.",
         confirmation_link
     );
 

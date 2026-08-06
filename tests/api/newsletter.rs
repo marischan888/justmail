@@ -4,7 +4,7 @@ use fake::faker::internet::en::SafeEmail;
 use fake::faker::name::en::Name;
 use justmail::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use wiremock::matchers::{method, any, path};
-use wiremock::{Mock, ResponseTemplate, MockBuilder};
+use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
 async fn you_must_login_to_see_the_issue_newsletter_form() {
@@ -114,9 +114,11 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers() {
     let response = app.post_newsletters(&request).await;
     assert_is_redirect_to(&response, "/admin/newsletters");
     let html_page = app.get_newsletters().await.text().await.unwrap();
+    // TODO: Set up the current subscribers
     assert!(html_page.contains(
-        "<p><i>no confirmed subscriber</i></p>"
+        "<p><i>You has issued newsletter to all your subscribers.</i></p>"
     ));
+    app.dispatch_all_pending_emails().await;
 }
 
 #[tokio::test]
@@ -156,6 +158,7 @@ async fn newsletter_are_delivered_to_confirmed_subscribers(){
     assert!(html_page.contains(
         "<p><i>You has issued newsletter to all your subscribers.</i></p>"
     ));
+    app.dispatch_all_pending_emails().await;
 }
 
 #[tokio::test]
@@ -194,6 +197,7 @@ async fn newsletter_creation_is_idempotent () {
     assert!(html_page.contains(
         "<p><i>You has issued newsletter to all your subscribers.</i></p>"
     ));
+    app.dispatch_all_pending_emails().await;
 }
 
 #[tokio::test]
@@ -224,60 +228,5 @@ async fn concurrent_form_submission_is_handled_gracefully () {
     let (response_1, response_2) = tokio::join!(response_1, response_2);
     assert_eq!(response_1.status(), response_2.status());
     assert_eq!(response_1.text().await.unwrap(), response_2.text().await.unwrap());
-}
-
-fn when_sending_an_email () -> MockBuilder {
-    Mock::given(path("/email")).and(method("POST"))
-}
-
-#[tokio::test]
-async fn transient_errors_do_not_cause_duplicate_deliveries_on_retires () {
-    let app = spawn_app().await;
-    let login_body = serde_json::json!({
-        "username": &app.test_user.username,
-        "password": &app.test_user.password,
-    });
-    let response = app.post_login(&login_body).await;
-    assert_is_redirect_to(&response, "/admin/dashboard");
-    let request = serde_json::json!({
-        "title": "Newsletter title",
-        "content": "this is the plain text",
-        "idempotency_key": uuid::Uuid::new_v4().to_string(),
-    });
-    // two subscribers
-    create_confirmed_subscriber(&app).await;
-    create_confirmed_subscriber(&app).await;
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions WHERE status = 'confirmed'")
-        .fetch_all(&app.db_pool)
-        .await
-        .expect("Failed to fetch saved subscription");
-    assert_eq!(saved.len(), 2);
-    // Part 1 - Intendtially let mock return 500 to fack a transitent error during the second
-    // subscriber db interaction
-    when_sending_an_email()
-        .respond_with(ResponseTemplate::new(200))
-        .up_to_n_times(1)
-        .expect(1)
-        .mount(&app.email_server)
-        .await;
-    when_sending_an_email()
-        .respond_with(ResponseTemplate::new(500))
-        .up_to_n_times(1)
-        .expect(1)
-        .mount(&app.email_server)
-        .await;
-    let response = app.post_newsletters(&request).await;
-    assert_eq!(response.status().as_u16(), 500);
-
-    // Part 2 - Retry submitting the form
-    // Email delivery will succeed for both subscribers now
-    when_sending_an_email()
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .named("Delivery Retry")
-        .mount(&app.email_server)
-        .await;
-    let response = app.post_newsletters(&request).await;
-    //// Mock verify on Drop that we did not sent out duplicates
-    assert_eq!(response.status().as_u16(), 303);
+    app.dispatch_all_pending_emails().await;
 }

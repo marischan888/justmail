@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::session_state::TypedSession;
 use crate::utils::{e500, see_other};
 
+//TODO: get and show all subscribers
 
 pub async fn admin_dashboard(
     session: TypedSession,

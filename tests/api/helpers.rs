@@ -1,5 +1,7 @@
 use argon2::{Argon2, PasswordHasher, Algorithm, Params, Version};
 use argon2::password_hash::phc::SaltString;
+use justmail::email_client::EmailClient;
+use justmail::issue_delivery_worker::{try_execute_task, ExecutionOutcome};
 use linkify::{LinkFinder, LinkKind};
 use justmail::configuration::{get_configuration, DatabaseSettings};
 use justmail::startup::{get_connection_pool, Application};
@@ -32,6 +34,8 @@ pub struct TestApp {
     pub test_user: TestUser,
     // reqwest api client
     pub api_client: reqwest::Client,
+    // email client
+    pub email_client: EmailClient,
 }
 
 pub struct ConfirmationLinks {
@@ -79,6 +83,18 @@ impl TestUser {
     }
 }
 impl TestApp {
+    pub async fn dispatch_all_pending_emails(&self) {
+        loop {
+            if let ExecutionOutcome::EmptyQueue = 
+            try_execute_task(&self.db_pool, &self.email_client)
+                .await
+                .unwrap()
+            {
+                break;
+            }
+        }
+    }
+
     pub async fn post_logout(&self) -> Response {
         self.api_client
             .post(&format!("{}/admin/logout", &self.address))
@@ -238,6 +254,7 @@ pub async fn spawn_app() -> TestApp {
         port: application_port,
         test_user: TestUser::generate(),
         api_client: client,
+        email_client: configurations.email_client.client()
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app

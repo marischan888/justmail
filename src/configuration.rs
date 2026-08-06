@@ -1,9 +1,10 @@
+use crate::domain::SubscriberEmail;
+use crate::email_client::EmailClient;
 use config::{Config, ConfigError};
 use secrecy::{ExposeSecret, SecretString};
 use serde_aux::field_attributes::deserialize_number_from_string;
-use sqlx::ConnectOptions;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
-use crate::domain::SubscriberEmail;
+use sqlx::ConnectOptions;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Settings {
@@ -37,13 +38,12 @@ pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
-    pub base_url: String, // application level url
+    pub base_url: String,          // application level url
     pub hmac_secret: SecretString, // application level secret for hmac tag
 }
 
 pub fn get_configuration() -> Result<Settings, ConfigError> {
-    let base_path = std::env::current_dir()
-        .expect("Failed to determine the current directory");
+    let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     let configuration_directory = base_path.join("configuration");
     let environment: Environment = std::env::var("APP_ENVIRONMENT")
         .unwrap_or_else(|_| "local".into())
@@ -51,9 +51,7 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
         .expect("Failed to parse APP_ENVIRONMENT");
 
     let settings = Config::builder()
-        .add_source(
-            config::File::from(configuration_directory.join("base")).required(true),
-        )
+        .add_source(config::File::from(configuration_directory.join("base")).required(true))
         .add_source(
             config::File::from(configuration_directory.join(environment.as_str())).required(true),
         )
@@ -120,6 +118,11 @@ impl DatabaseSettings {
 }
 
 impl EmailClientSettings {
+    pub fn client(self) -> EmailClient {
+        let sender_email = self.sender().expect("Invalid sender email address.");
+        let timeout = self.timeout();
+        EmailClient::new(self.base_url, sender_email, self.auth_token, timeout)
+    }
     pub fn sender(&self) -> Result<SubscriberEmail, String> {
         SubscriberEmail::parse(self.sender_email.clone())
     }
