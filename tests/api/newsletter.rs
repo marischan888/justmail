@@ -4,7 +4,7 @@ use fake::faker::internet::en::SafeEmail;
 use fake::faker::name::en::Name;
 use justmail::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use wiremock::matchers::{method, any, path};
-use wiremock::{Mock, ResponseTemplate};
+use wiremock::{Mock, ResponseTemplate, MockBuilder};
 
 #[tokio::test]
 async fn you_must_login_to_see_the_issue_newsletter_form() {
@@ -114,7 +114,6 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers() {
     let response = app.post_newsletters(&request).await;
     assert_is_redirect_to(&response, "/admin/newsletters");
     let html_page = app.get_newsletters().await.text().await.unwrap();
-    // TODO: Set up the current subscribers
     assert!(html_page.contains(
         "<p><i>You has issued newsletter to all your subscribers.</i></p>"
     ));
@@ -229,4 +228,147 @@ async fn concurrent_form_submission_is_handled_gracefully () {
     assert_eq!(response_1.status(), response_2.status());
     assert_eq!(response_1.text().await.unwrap(), response_2.text().await.unwrap());
     app.dispatch_all_pending_emails().await;
+}
+
+fn when_sending_an_email () -> MockBuilder {
+    Mock::given(path("/email")).and(method("POST"))
+}
+
+#[tokio::test]
+async fn transient_errors_do_not_cause_duplicate_deliveries_on_retires () {
+    let app = spawn_app().await;
+    let login_body = serde_json::json!({
+        "username": &app.test_user.username,
+        "password": &app.test_user.password,
+    });
+    let response = app.post_login(&login_body).await;
+    assert_is_redirect_to(&response, "/admin/dashboard");
+    let request = serde_json::json!({
+        "title": "Newsletter title",
+        "content": "this is the plain text",
+        "idempotency_key": uuid::Uuid::new_v4().to_string(),
+    });
+    // two subscribers
+    create_confirmed_subscriber(&app).await;
+    create_confirmed_subscriber(&app).await;
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions WHERE status = 'confirmed'")
+        .fetch_all(&app.db_pool)
+        .await
+        .expect("Failed to fetch saved subscription");
+    assert_eq!(saved.len(), 2);
+    // Part 1 - Intendtially let mock return 500 to fake a transitent error during the second
+    // subscriber db interaction
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(500))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+    // post newsletter will return 303 since it deliver the email client handler to background worker
+    // do not use unwrap since since there is a 500 and we ignore it
+    let response = app.post_newsletters(&request).await;
+    assert_eq!(response.status().as_u16(), 303);
+    // Manually step the worker twice instead of using dispatch_all_pending_emails().
+    let _ = justmail::issue_delivery_worker::try_execute_task(&app.db_pool, &app.email_client).await;
+    let _ = justmail::issue_delivery_worker::try_execute_task(&app.db_pool, &app.email_client).await;
+    // Part 2 - Retry submitting the form
+    // Email delivery will succeed for both subscribers now
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .named("Delivery Retry")
+        .mount(&app.email_server)
+        .await;
+    let response = app.post_newsletters(&request).await;
+    //// Mock verify on Drop that we did not sent out duplicates
+    assert_eq!(response.status().as_u16(), 303);
+    // we CAN unwrap it, because we expect Mock 3 (200) to make it succeed.
+    let _ = justmail::issue_delivery_worker::try_execute_task(&app.db_pool, &app.email_client)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn the_worker_delete_task_after_sixth_retry() {
+    let app = spawn_app().await;
+    
+    // 1. Create a real subscriber to avoid foreign key violations on subscriber_email
+    let subscriber = create_confirmed_subscriber(&app).await;
+    let issue_id = uuid::Uuid::new_v4();
+    
+    // 2. Insert fake newsletter issue
+    sqlx::query!(
+        r#"
+        INSERT INTO newsletter_issues (
+            newsletter_issue_id, 
+            title, 
+            text_content, 
+            html_content, 
+            published_at
+        )
+        VALUES ($1, $2, $3, $4, now())
+        "#,
+        issue_id,
+        "Fake Title",
+        "Fake text content",
+        "Fake html content"
+    )
+    .execute(&app.db_pool)
+    .await
+    .expect("Failed to insert fake newsletter issue.");
+
+    // 3. Insert fake issue delivery task (starting at 0 attempts)
+    sqlx::query!(
+        r#"
+        INSERT INTO issue_delivery_queue (
+            newsletter_issue_id, 
+            subscriber_email,
+            attempts
+        )
+        VALUES ($1, $2, 0)
+        "#,
+        issue_id,
+        subscriber.email.as_ref(),
+    )
+    .execute(&app.db_pool)
+    .await
+    .expect("Failed to insert fake issue delivery task.");
+        
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(500))
+        .expect(6)
+        .mount(&app.email_server)
+        .await;
+    
+    for _ in 0..6 {
+        let _ = justmail::issue_delivery_worker::try_execute_task(
+            &app.db_pool, 
+            &app.email_client
+        ).await;
+    }
+
+    // 6. Assert the record is deleted from the database
+    let saved = sqlx::query!(
+        r#"
+        SELECT attempts
+        FROM issue_delivery_queue 
+        WHERE subscriber_email = $1
+        "#,
+        subscriber.email.as_ref()
+    )
+    .fetch_optional(&app.db_pool)
+    .await
+    .expect("Failed to query the database.");
+
+    // If max retries is 5, the 6th failure should delete the row, so 'saved' should be None
+    assert!(
+        saved.is_none(),
+        "Expected the record to be deleted after failing 6 times."
+    );
 }

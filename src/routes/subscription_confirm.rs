@@ -8,7 +8,7 @@ use serde::Deserialize;
 use sqlx::{Executor, PgPool, Postgres};
 use uuid::Uuid;
 use askama::Template;
-use crate::routes::error_chain_fmt;
+use crate::routes::{SubscriptionLinkToken, error_chain_fmt};
 
 #[derive(Deserialize)]
 pub struct Parameters {
@@ -57,62 +57,67 @@ pub async fn subscription_confirm(
     parameters: web::Query<Parameters>,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, ConfirmError> {
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to start transaction for confirmation subscription.")?;
+    match SubscriptionLinkToken::parse(parameters.subscription_token.clone()) {
+        Ok(valid_token) => {
+            let mut transaction = pool
+                .begin()
+                .await
+                .context("Failed to start transaction for confirmation subscription.")?;
 
-    let current_time = Utc::now();
-    let token_record = get_record_from_token
-        (
-            &mut *transaction,
-            &parameters.subscription_token,
-        )
-        .await
-        .context("Failed to get subscriber id from the database.")?
-        .ok_or(ConfirmError::UnknownToken)?;
+            let current_time = Utc::now();
+            let token_record = get_record_from_token
+                (
+                    &mut *transaction,
+                    valid_token.as_ref(),
+                )
+                .await
+                .context("Failed to get subscriber id from the database.")?
+                .ok_or(ConfirmError::UnknownToken)?;
+            let duration = current_time - token_record.token_created_at;
+            //TODO: remove expired token by worker
+            let next_action =  if duration > TimeDelta::days(2) {
+                remove_expired_token_record(&mut *transaction, valid_token.as_ref())
+                    .await
+                    .context("can not delete token record")?
+            } else {
+                mark_subscriber_confirmed(&mut *transaction, token_record.subscriber_id)
+                    .await
+                    .context("Failed to mark subscriber as confirmed.")?
+            };
+            transaction
+                .commit()
+                .await
+                .context("Failed to commit transaction for confirmation subscription.")?;
 
-    let duration = current_time - token_record.token_created_at;
-    let next_action =  if duration > TimeDelta::days(2) {
-        remove_expired_token_record(&mut *transaction, &parameters.subscription_token)
-            .await
-            .context("can not delete token record")?
-    } else {
-        mark_subscriber_confirmed(&mut *transaction, token_record.subscriber_id)
-            .await
-            .context("Failed to mark subscriber as confirmed.")?
-    };
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit transaction for confirmation subscription.")?;
-
-    let html_template = match next_action {
-        Action::SendSuccess => {
-            ConfirmationTemplate {
-                title: "Subscribe Successfully.",
-                message: "Thank you for your support."
-            }
+            let html_template = match next_action {
+                Action::SendSuccess => {
+                    ConfirmationTemplate {
+                        title: "Subscribe Successfully.",
+                        message: "Thank you for your support."
+                    }
+                }
+                Action::SendAlreadyConfirm => {
+                    ConfirmationTemplate {
+                        title: "You have already subscribed.",
+                        message: "Thank you."
+                    }
+                }
+                Action::LinkExpired => {
+                    ConfirmationTemplate {
+                        title: "This confirmation link has been expired",
+                        message: "Please subscribe again"
+                    }
+                }
+            };
+            let html_body = html_template.render().context("can not generate html")?;
+            Ok(
+                HttpResponse::Ok()
+                    .content_type(ContentType::html())
+                    .body(html_body)
+            )
         }
-        Action::SendAlreadyConfirm => {
-            ConfirmationTemplate {
-                title: "You have already subscribed.",
-                message: "Thank you."
-            }
-        }
-        Action::LinkExpired => {
-            ConfirmationTemplate {
-                title: "This confirmation link has been expired",
-                message: "Please subscribe again"
-            }
-        }
-    };
-    let html_body = html_template.render().context("can not generate html")?;
-    Ok(
-        HttpResponse::Ok()
-            .content_type(ContentType::html())
-            .body(html_body)
-    )
+        Err(_) => {return Err(ConfirmError::UnknownToken)}
+    }
 }
 
 #[tracing::instrument

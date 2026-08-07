@@ -148,7 +148,7 @@ async fn confirmed_subscriber_click_twice() {
 #[tokio::test]
 async fn confirming_link_should_be_expired_after_two_days() {
     let app = spawn_app().await;
-    let token = "expired_test_token";
+    let token = "expiredaaaaaaaaaaaaaaaaaa";
     let subscriber_id = Uuid::new_v4();
 
     // Insert subscriber

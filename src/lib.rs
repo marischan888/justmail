@@ -4,6 +4,7 @@ pub mod domain;
 pub mod email_client;
 pub mod idempotency;
 pub mod issue_delivery_worker;
+pub mod remove_expired_link_worker;
 pub mod routes;
 pub mod session_state;
 pub mod startup;

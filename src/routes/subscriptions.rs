@@ -11,14 +11,40 @@ use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
 
+#[derive(Debug, Clone)]
+pub struct SubscriptionLinkToken(String);
+
+impl SubscriptionLinkToken {
+    pub fn parse(s: String) -> Result<SubscriptionLinkToken, String> {
+        let is_wrong_length = s.chars().count() != 25;
+        let contains_invalid_chars = s.chars().any(|c| !c.is_ascii_alphanumeric());
+
+        if is_wrong_length || contains_invalid_chars {
+            Err(format!(
+                "'{}' is not a valid 25-character alphanumeric token.",
+                s
+            ))
+        } else {
+            Ok(Self(s))
+        }
+    }
+}
+
+impl AsRef<str> for SubscriptionLinkToken {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 // TODO: How to clean up the Abandon records?
 // Generate a random 25-char-long case-sensitive token
-fn generate_subscription_token() -> String {
+fn generate_subscription_token() -> SubscriptionLinkToken {
     let mut rng = rng();
-    std::iter::repeat_with(|| rng.sample(Alphanumeric))
+    let ran_token = std::iter::repeat_with(|| rng.sample(Alphanumeric))
         .map(char::from)
         .take(25)
-        .collect()
+        .collect();
+    SubscriptionLinkToken(ran_token)
 }
 
 #[derive(serde::Deserialize)]
@@ -117,7 +143,7 @@ pub async fn subscribe(
         (
          &mut *transaction,
          subscriber_status.subscriber_id,
-         &subscription_token,
+         &subscription_token.0,
         )
         .await
         .context("Failed to store new subscriber token in the database.")?;
@@ -132,7 +158,7 @@ pub async fn subscribe(
             &email_client,
             &new_subscriber,
             &base_url.0,
-            &subscription_token,
+            &subscription_token.0,
         )
         .await
         .context("Failed to send a confirmation email to the subscriber.")?;
@@ -166,7 +192,6 @@ pub async fn store_new_token(
     Ok(())
 }
 
-//TODO: unsubscirb
 #[tracing::instrument
 (
     name = "Sending confirmation email to the subscriber",
@@ -227,7 +252,9 @@ pub async fn insert_subscriber(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at, status)
         VALUES ($1, $2, $3, $4, 'pending_confirmation')
-        ON CONFLICT (email) DO UPDATE SET name=EXCLUDED.name
+        ON CONFLICT (email) 
+        DO UPDATE SET 
+            name=EXCLUDED.name
         RETURNING id, status
         "#,
         subscriber_id,

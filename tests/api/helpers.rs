@@ -85,6 +85,7 @@ impl TestUser {
 impl TestApp {
     pub async fn dispatch_all_pending_emails(&self) {
         loop {
+            // when error occur, directly unwrap
             if let ExecutionOutcome::EmptyQueue = 
             try_execute_task(&self.db_pool, &self.email_client)
                 .await
