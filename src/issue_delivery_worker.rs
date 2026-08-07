@@ -37,6 +37,7 @@ async fn worker_loop(
 }
 
 #[tracing::instrument(
+    level = "trace",
     skip_all,
     fields(
         newsletter_issue_id=tracing::field::Empty,
@@ -100,7 +101,7 @@ pub async fn try_execute_task(
     Ok(ExecutionOutcome::TaskCompleted)
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn record_failure(
     mut transaction: PgTransaction,
     issue_id: Uuid,
@@ -128,7 +129,7 @@ struct NewsletterIssue {
     html_content: String
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn get_issue(
     pool: &PgPool,
     issue_id: Uuid,
@@ -150,7 +151,7 @@ async fn get_issue(
 
 type PgTransaction = Transaction<'static, Postgres>;
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn dequeue_task(pool: &PgPool) -> Result<Option<(PgTransaction, Uuid, String, i32)>, anyhow::Error> {
     let mut transaction = pool.begin().await?;
     let record = sqlx::query!(
@@ -176,7 +177,7 @@ async fn dequeue_task(pool: &PgPool) -> Result<Option<(PgTransaction, Uuid, Stri
     }
 }
 
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(level = "trace", skip_all)]
 async fn delete_task(
     mut transaction: PgTransaction,
     issue_id: Uuid,
