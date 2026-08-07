@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO subscriptions (id, email, name, subscribed_at, status)\n        VALUES ($1, $2, $3, $4, 'pending_confirmation')\n        ON CONFLICT (email) DO UPDATE SET name=EXCLUDED.name\n        RETURNING id, status\n        ",
+  "query": "\n        INSERT INTO subscriptions (id, email, name, subscribed_at, status)\n        VALUES ($1, $2, $3, $4, 'pending_confirmation')\n        ON CONFLICT (email) \n        DO UPDATE SET \n            name=EXCLUDED.name\n        RETURNING id, status\n        ",
   "describe": {
     "columns": [
       {
@@ -27,5 +27,5 @@
       false
     ]
   },
-  "hash": "1a681fca519cb8e9504913659c6065989046f90dada0e6e30ca947029455f88e"
+  "hash": "1f91cb35a1eefa82f1e1728f957105d3ea85f7fa2f035eef92306acad3837ca6"
 }

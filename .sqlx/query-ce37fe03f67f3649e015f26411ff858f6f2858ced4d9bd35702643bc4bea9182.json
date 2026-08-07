@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM subscription_tokens\n        WHERE subscription_token = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ce37fe03f67f3649e015f26411ff858f6f2858ced4d9bd35702643bc4bea9182"
+}
