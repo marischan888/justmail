@@ -117,7 +117,7 @@ pub async fn run
                 .wrap(TracingLogger::default())
                 .route("/subscription", web::post().to(subscribe))
                 .route("/subscription", web::get().to(subscribe_form))
-                .route("/subscriptions/confirm", web::get().to(subscription_confirm))
+                .route("/subscription/confirm", web::get().to(subscription_confirm))
                 .route("/", web::get().to(home))
                 .route("/login", web::get().to(login_form))
                 .route("/login", web::post().to(login))
