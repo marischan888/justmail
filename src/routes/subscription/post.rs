@@ -1,6 +1,7 @@
 use std::fmt::{Debug,  Formatter};
 use actix_web::{HttpResponse, web, ResponseError};
 use actix_web::http::StatusCode;
+use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
 use chrono::Utc;
 use sqlx::{Executor, PgPool, Postgres};
@@ -10,6 +11,7 @@ use rand::{rng, RngExt};
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
+use crate::utils::see_other;
 
 #[derive(Debug, Clone)]
 pub struct SubscriptionLinkToken(String);
@@ -36,8 +38,6 @@ impl AsRef<str> for SubscriptionLinkToken {
     }
 }
 
-// TODO: How to clean up the Abandon records?
-// Generate a random 25-char-long case-sensitive token
 fn generate_subscription_token() -> SubscriptionLinkToken {
     let mut rng = rng();
     let ran_token = std::iter::repeat_with(|| rng.sample(Alphanumeric))
@@ -137,7 +137,14 @@ pub async fn subscribe(
         )
         .await
         .context("Failed to insert new subscriber into the database.")?;
-
+    if subscriber_status.status == "confirmed" {
+        transaction
+            .commit()
+            .await
+            .context("Failed to commit the current transaction for subscription.")?;
+        FlashMessage::info("You are already confirmed, no link is sent.").send();
+        return Ok(see_other("/subscription"));
+    }
     let subscription_token = generate_subscription_token();
     store_new_token
         (
@@ -147,12 +154,10 @@ pub async fn subscribe(
         )
         .await
         .context("Failed to store new subscriber token in the database.")?;
-
     transaction
         .commit()
         .await
         .context("Failed to commit the current transaction for subscription.")?;
-
     send_confirmation_email
         (
             &email_client,
@@ -162,8 +167,8 @@ pub async fn subscribe(
         )
         .await
         .context("Failed to send a confirmation email to the subscriber.")?;
-
-    Ok(HttpResponse::Created().finish())
+    FlashMessage::info("Check your mailbox for the cconfirmation link.").send();
+    Ok(see_other("/subscription"))
 }
 
 

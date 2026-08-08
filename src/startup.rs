@@ -13,18 +13,7 @@ use sqlx::postgres::PgPoolOptions;
 use tracing_actix_web::TracingLogger;
 use crate::authentication::{reject_anonymous_user};
 use crate::routes::{
-    admin_dashboard,
-    change_password,
-    change_password_form,
-    health_check,
-    home,
-    log_out,
-    login,
-    login_form,
-    issue_newsletters_form,
-    issue_newsletters,
-    subscribe,
-    subscription_confirm
+    admin_dashboard, change_password, change_password_form, health_check, home, issue_newsletters, issue_newsletters_form, log_out, login, login_form, subscribe, subscribe_form, subscription_confirm
 };
 use crate::email_client::EmailClient;
 use crate::configuration::{DatabaseSettings, Settings};
@@ -126,7 +115,8 @@ pub async fn run
                 .wrap(message_framework.clone())
                 .wrap(SessionMiddleware::new(redis_store.clone(), signed_key.clone()))
                 .wrap(TracingLogger::default())
-                .route("/subscriptions", web::post().to(subscribe))
+                .route("/subscription", web::post().to(subscribe))
+                .route("/subscription", web::get().to(subscribe_form))
                 .route("/subscriptions/confirm", web::get().to(subscription_confirm))
                 .route("/", web::get().to(home))
                 .route("/login", web::get().to(login_form))

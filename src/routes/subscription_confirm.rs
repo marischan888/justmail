@@ -8,7 +8,7 @@ use serde::Deserialize;
 use sqlx::{Executor, PgPool, Postgres};
 use uuid::Uuid;
 use askama::Template;
-use crate::routes::{SubscriptionLinkToken, error_chain_fmt};
+use crate::routes::subscription::post::{SubscriptionLinkToken, error_chain_fmt};
 
 #[derive(Deserialize)]
 pub struct Parameters {

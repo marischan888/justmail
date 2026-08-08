@@ -3,7 +3,7 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
-async fn subscribe_returns_a_200_for_valid_form_data() {
+async fn subscribe_returns_a_303_for_valid_form_data() {
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
@@ -13,9 +13,10 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
         .expect(1)
         .mount(&app.email_server)
         .await;
-    let response = app.post_subscriptions(body.into()).await;
-
-    assert_eq!(201, response.status().as_u16());
+    let response = app.post_subscription(body.into()).await;
+    let html = app.get_subscribe_form().await.text().await.unwrap();
+    assert_eq!(303, response.status().as_u16());
+    assert!(html.contains("Check your mailbox for the cconfirmation link."));
 }
 
 #[tokio::test]
@@ -30,7 +31,7 @@ async fn subscribe_persist_new_subscribers() {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
 
     let saved = sqlx::query!("SELECT email, name, status FROM subscriptions")
         .fetch_one(&app.db_pool)
@@ -51,7 +52,7 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post_subscriptions(invalid_body.into()).await;
+        let response = app.post_subscription(invalid_body.into()).await;
 
         assert_eq!(
             400,
@@ -73,7 +74,7 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
     ];
     for (body, description) in test_cases {
         // Act
-        let response = app.post_subscriptions(body.into()).await;
+        let response = app.post_subscription(body.into()).await;
         // Assert
         assert_eq!(
             400,
@@ -96,7 +97,7 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
 }
 
 #[tokio::test]
@@ -110,7 +111,7 @@ async fn subscriber_sends_a_confirmation_email_with_a_link() {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
 
     let received_request = &app.email_server
         .received_requests()
@@ -131,7 +132,7 @@ async fn subscribe_fails_if_there_is_a_fatal_database_error() {
         .execute(&app.db_pool)
         .await
         .unwrap();
-    let response = app.post_subscriptions(body.into()).await;
+    let response = app.post_subscription(body.into()).await;
     // Arrange
     assert_eq!(response.status().as_u16(), 500);
 }
@@ -148,8 +149,8 @@ async fn subscriber_will_receive_two_email_when_subscribe_twice_with_same_email(
         .await;
 
     // Act
-    app.post_subscriptions(body.into()).await;
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
+    app.post_subscription(body.into()).await;
     // Arrange
     let received_request = &app.email_server.received_requests().await.unwrap();
     assert_eq!(received_request.len(), 2);
@@ -177,8 +178,8 @@ async fn subscribe_twice_with_same_email_will_get_distinct_token_under_the_same_
         .await;
 
     // Act
-    app.post_subscriptions(body.into()).await;
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
+    app.post_subscription(body.into()).await;
     let received_request = &app.email_server.received_requests().await.unwrap();
     let token_one = app.get_confirmation_links(&received_request[0]).token;
     let token_two = app.get_confirmation_links(&received_request[1]).token;
@@ -205,13 +206,18 @@ async fn subscribe_twice_with_same_email_will_get_distinct_token_under_the_same_
 }
 
 #[tokio::test]
-async fn subscribe_twice_with_distinct_name_and_same_email_will_update_name() {
+async fn subscribe_twice_with_distinct_name_and_same_email_will_update_name_only() {
     let app = spawn_app().await;
     let body_one = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let body_two = "name=Canary&email=ursula_le_guin%40gmail.com";
 
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&app.email_server)
+        .await;
     // Act
-    app.post_subscriptions(body_one.into()).await;
+    app.post_subscription(body_one.into()).await;
     let name_before = sqlx::query!(
         "SELECT name FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'"
     )
@@ -219,7 +225,7 @@ async fn subscribe_twice_with_distinct_name_and_same_email_will_update_name() {
         .await
         .unwrap().name;
 
-    app.post_subscriptions(body_two.into()).await;
+    app.post_subscription(body_two.into()).await;
     let name_update = sqlx::query!(
         "SELECT name FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'"
     )
@@ -229,7 +235,6 @@ async fn subscribe_twice_with_distinct_name_and_same_email_will_update_name() {
     // Arrange
     assert_eq!(name_update.as_str(), "Canary");
     assert_eq!(name_before.as_str(), "le guin");
-    assert_ne!(name_before, name_update);
 }
 
 #[tokio::test]
@@ -244,12 +249,12 @@ async fn confirmed_subscriber_receive_new_link_using_distinct_email() {
         .mount(&app.email_server)
         .await;
     // Act
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
     let received_request = &app.email_server.received_requests().await.unwrap();
     let confirmation_link = app.get_confirmation_links(&received_request[0]);
     let token_one = confirmation_link.token;
     reqwest::get(confirmation_link.html_link).await.unwrap();
-    app.post_subscriptions(body_two.into()).await;
+    app.post_subscription(body_two.into()).await;
     let second_request = &app.email_server.received_requests().await.unwrap()[1];
     let token_two = app.get_confirmation_links(&second_request).token;
 
@@ -261,4 +266,39 @@ async fn confirmed_subscriber_receive_new_link_using_distinct_email() {
     // Arrange
     assert_ne!(token_one, token_two);
     assert_eq!(query_result.count.unwrap(), 2);
+}
+
+#[tokio::test]
+async fn confirmed_subscriber_can_not_get_the_link_again_with_the_same_email() {
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&app.email_server)
+        .await;
+    // Arrange
+    app.post_subscription(body.into()).await;
+    let received_request = &app.email_server.received_requests().await.unwrap();
+    let confirmation_link = app.get_confirmation_links(&received_request[0]);
+    let token = confirmation_link.token;
+    reqwest::get(confirmation_link.html_link).await.unwrap();
+    // post again
+    app.post_subscription(body.into()).await;
+    // Act: there is no new token
+    let subscriber_id = sqlx::query!(
+        r#"
+        SELECT id FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'
+        "#
+    ).fetch_one(&app.db_pool).await.unwrap().id;
+    let stored_token = sqlx::query!(
+        r#"
+        SELECT subscription_token FROM subscription_tokens WHERE subscriber_id = $1
+        "#,
+        subscriber_id
+    )
+        .fetch_one(&app.db_pool)
+        .await.unwrap().subscription_token;
+    assert_eq!(token, stored_token)
 }

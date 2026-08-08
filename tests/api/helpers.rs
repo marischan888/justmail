@@ -175,14 +175,22 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_subscriptions(&self, body: String) -> Response {
+    pub async fn post_subscription(&self, body: String) -> Response {
         self.api_client
-            .post(&format!("{}/subscriptions", &self.address))
+            .post(&format!("{}/subscription", &self.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
             .send()
             .await
             .expect("Failed to execute request.")
+    }
+
+    pub async fn get_subscribe_form(&self) -> Response {
+        self.api_client
+            .get(&format!("{}/subscription", &self.address))
+            .send()
+            .await
+            .expect("Failed to get subscribe page html")
     }
 
     pub fn get_confirmation_links(&self, request: &wiremock::Request) -> ConfirmationLinks {

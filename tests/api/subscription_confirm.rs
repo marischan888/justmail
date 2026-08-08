@@ -17,7 +17,7 @@ async fn confirmation_without_token_are_rejected_with_a_link() {
 async fn confirmation_failed_if_there_is_a_fatal_database_error() {
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
     let received_request = &app.email_server
         .received_requests()
         .await
@@ -40,7 +40,7 @@ async fn confirmation_failed_if_there_is_a_fatal_database_error() {
 async fn confirmation_failed_given_a_unknown_token() {
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
     let received_request = &app.email_server
         .received_requests()
         .await
@@ -67,7 +67,7 @@ async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
 
     let received_request = &app.email_server
         .received_requests()
@@ -94,7 +94,7 @@ async fn clicking_on_confirmation_link_confirms_a_subscriber() {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
 
     let received_request = &app.email_server
         .received_requests()
@@ -126,7 +126,7 @@ async fn confirmed_subscriber_click_twice() {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body.into()).await;
+    app.post_subscription(body.into()).await;
     let received_request = &app.email_server
         .received_requests()
         .await
