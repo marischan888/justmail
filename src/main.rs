@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display};
 
 use justmail::configuration::get_configuration;
+use justmail::remove_expired_link_worker::run_token_worker_until_stopped;
 use justmail::startup::{Application};
 use justmail::telemetry::{get_subscriber, init_subscriber};
 use justmail::issue_delivery_worker::run_worker_until_stopped;
@@ -17,13 +18,16 @@ async fn main() -> anyhow::Result<()> {
     let application = Application::build(configuration.clone()).await?;
     let application_task = tokio::spawn(application.run_until_stopped());
     // let worker keep issuing email to subscriber
-    let worker_task  = tokio::spawn(run_worker_until_stopped(configuration));
+    let worker_task  = tokio::spawn(run_worker_until_stopped(configuration.clone()));
+    // let clear token worker keep clear the expired link token per day
+    let token_worker_task = tokio::spawn(run_token_worker_until_stopped(configuration));
 
     // waits on multiple future (tasks) on multiple threads
     // black box: not sure which task complete first
     tokio::select! {
         outcome = application_task => report_exit("API", outcome),
-        outcome = worker_task => report_exit("Background work", outcome),
+        outcome = worker_task => report_exit("Send email background work", outcome),
+        outcome = token_worker_task => report_exit("Clear roken background work", outcome)
     };
 
     Ok(())

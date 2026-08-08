@@ -100,7 +100,7 @@ impl DatabaseSettings {
             tracing::info!("SSL is required to connect to database under production");
             PgSslMode::Require
         } else {
-            tracing::info!("SSL is prefered to database under development");
+            tracing::info!("SSL is preferred to database under development");
             PgSslMode::Prefer
         };
         PgConnectOptions::new()

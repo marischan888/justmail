@@ -63,8 +63,6 @@ pub async fn subscription_confirm(
                 .begin()
                 .await
                 .context("Failed to start transaction for confirmation subscription.")?;
-
-            let current_time = Utc::now();
             let token_record = get_record_from_token
                 (
                     &mut *transaction,
@@ -73,12 +71,14 @@ pub async fn subscription_confirm(
                 .await
                 .context("Failed to get subscriber id from the database.")?
                 .ok_or(ConfirmError::UnknownToken)?;
+            // check time
+            let current_time = Utc::now();
             let duration = current_time - token_record.token_created_at;
-            //TODO: remove expired token by worker
-            let next_action =  if duration > TimeDelta::days(2) {
-                remove_expired_token_record(&mut *transaction, valid_token.as_ref())
-                    .await
-                    .context("can not delete token record")?
+            let confirm_result =  if duration > TimeDelta::days(2) {
+                //remove_expired_token_record(&mut *transaction, valid_token.as_ref())
+                //    .await
+                //    .context("can not delete token record")?
+                ConfirmLinkResult::LinkExpired
             } else {
                 mark_subscriber_confirmed(&mut *transaction, token_record.subscriber_id)
                     .await
@@ -89,20 +89,20 @@ pub async fn subscription_confirm(
                 .await
                 .context("Failed to commit transaction for confirmation subscription.")?;
 
-            let html_template = match next_action {
-                Action::SendSuccess => {
+            let html_template = match confirm_result {
+                ConfirmLinkResult::ConfirmSuccess => {
                     ConfirmationTemplate {
                         title: "Subscribe Successfully.",
                         message: "Thank you for your support."
                     }
                 }
-                Action::SendAlreadyConfirm => {
+                ConfirmLinkResult::AlreadyConfirm => {
                     ConfirmationTemplate {
                         title: "You have already subscribed.",
                         message: "Thank you."
                     }
                 }
-                Action::LinkExpired => {
+                ConfirmLinkResult::LinkExpired => {
                     ConfirmationTemplate {
                         title: "This confirmation link has been expired",
                         message: "Please subscribe again"
@@ -172,27 +172,27 @@ pub async fn get_record_from_token(
     }))
 }
 
-pub enum Action {
-    SendSuccess,
-    SendAlreadyConfirm,
+pub enum ConfirmLinkResult {
+    ConfirmSuccess,
+    AlreadyConfirm,
     LinkExpired,
 }
 
-pub async fn remove_expired_token_record(
-    executor: impl Executor<'_, Database=Postgres>,
-    subscription_token: &str,
-) -> Result<Action, sqlx::Error> {
-    sqlx::query!(
-        r#"
-        DELETE FROM subscription_tokens
-        WHERE subscription_token = $1
-        "#,
-        subscription_token,
-    )
-        .execute(executor)
-        .await?;
-    Ok(Action::LinkExpired)
-}
+//pub async fn remove_expired_token_record(
+//    executor: impl Executor<'_, Database=Postgres>,
+//    subscription_token: &str,
+//) -> Result<Action, sqlx::Error> {
+//    sqlx::query!(
+//        r#"
+//        DELETE FROM subscription_tokens
+//        WHERE subscription_token = $1
+//        "#,
+//        subscription_token,
+//    )
+//        .execute(executor)
+//        .await?;
+//    Ok(Action::LinkExpired)
+//}
 
 #[tracing::instrument
 (
@@ -202,7 +202,7 @@ pub async fn remove_expired_token_record(
 pub async fn mark_subscriber_confirmed(
     executor: impl Executor<'_, Database=Postgres>,
     subscriber_id: Uuid
-) -> Result<Action, sqlx::Error> {
+) -> Result<ConfirmLinkResult, sqlx::Error> {
     let n_rows_affected =  sqlx::query!(
         r#"
         UPDATE subscriptions 
@@ -216,8 +216,8 @@ pub async fn mark_subscriber_confirmed(
     .rows_affected();
 
     if n_rows_affected > 0 {
-        Ok(Action::SendSuccess)
+        Ok(ConfirmLinkResult::ConfirmSuccess)
     } else {
-        Ok(Action::SendAlreadyConfirm)
+        Ok(ConfirmLinkResult::AlreadyConfirm)
     }
 }

@@ -189,6 +189,9 @@ async fn confirming_link_should_be_expired_after_two_days() {
     assert_eq!(response.status().as_u16(), 200);
     let body = response.text().await.unwrap();
     assert!(body.contains("This confirmation link has been expired"));
+
+    // let token worker do the dirty work
+    let _ = justmail::remove_expired_link_worker::try_clear_expired_token(&app.db_pool).await;
     // token has been removed
     let saved = sqlx::query!(
         r#"SELECT * FROM subscription_tokens WHERE subscription_token = $1"#,
