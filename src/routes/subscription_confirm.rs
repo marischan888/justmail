@@ -75,9 +75,6 @@ pub async fn subscription_confirm(
             let current_time = Utc::now();
             let duration = current_time - token_record.token_created_at;
             let confirm_result =  if duration > TimeDelta::days(2) {
-                //remove_expired_token_record(&mut *transaction, valid_token.as_ref())
-                //    .await
-                //    .context("can not delete token record")?
                 ConfirmLinkResult::LinkExpired
             } else {
                 mark_subscriber_confirmed(&mut *transaction, token_record.subscriber_id)
