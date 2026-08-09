@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM subscription_tokens\n        WHERE created_at < NOW() - INTERVAL '2 days'\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "8baf5eea93a858ea4be18a986b67bb6695ab3ccab58c56d22d099a6851b5b099"
+}
