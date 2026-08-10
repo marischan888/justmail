@@ -1,18 +1,14 @@
-use std::fmt::Write;
+use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
-use actix_web::{HttpResponse};
-use actix_web_flash_messages::{IncomingFlashMessages};
+use actix_web_flash_messages::IncomingFlashMessages;
+use std::fmt::Write;
 
-#[tracing::instrument
-(
-    skip(flash_messages),
-)]
+#[tracing::instrument(skip(flash_messages))]
 
 pub async fn subscribe_form(flash_messages: IncomingFlashMessages) -> HttpResponse {
     let mut error_html = String::new();
     // display all level flash message
-    for msg in flash_messages.iter()
-    {
+    for msg in flash_messages.iter() {
         writeln!(error_html, "<p><i>{}</i></p>", msg.content()).unwrap();
     }
 
@@ -52,6 +48,6 @@ pub async fn subscribe_form(flash_messages: IncomingFlashMessages) -> HttpRespon
             </form>
             </body>
             </html>"#,
-            error_html)
-        )
+            error_html
+        ))
 }

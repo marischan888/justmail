@@ -1,10 +1,10 @@
-use actix_web::{web, HttpResponse};
-use actix_web::http::header::{ContentType};
+use crate::session_state::TypedSession;
+use crate::utils::{e500, see_other};
+use actix_web::http::header::ContentType;
+use actix_web::{HttpResponse, web};
 use anyhow::Context;
 use sqlx::PgPool;
 use uuid::Uuid;
-use crate::session_state::TypedSession;
-use crate::utils::{e500, see_other};
 
 //TODO: get and show all subscribers
 
@@ -12,12 +12,9 @@ pub async fn admin_dashboard(
     session: TypedSession,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let username = if let Some(user_id) = session
-        .get_user_id()
-        .map_err(e500)? {
+    let username = if let Some(user_id) = session.get_user_id().map_err(e500)? {
         get_username(user_id, &pool).await.map_err(e500)?
-    }
-    else {
+    } else {
         return Ok(see_other("/login"));
     };
 
@@ -45,23 +42,12 @@ pub async fn admin_dashboard(
              </ol>
              </body>
              </html>"#
-        ))
-    )
+        )))
 }
 
-#[tracing::instrument
-(
-    name = "Get username by id",
-    skip(pool),
-)]
-pub async fn get_username(
-    user_id: Uuid,
-    pool: &PgPool,
-) -> Result<String, anyhow::Error> {
-    let record = sqlx::query!(
-        r#"SELECT username FROM users WHERE user_id = $1"#,
-        user_id
-    )
+#[tracing::instrument(name = "Get username by id", skip(pool))]
+pub async fn get_username(user_id: Uuid, pool: &PgPool) -> Result<String, anyhow::Error> {
+    let record = sqlx::query!(r#"SELECT username FROM users WHERE user_id = $1"#, user_id)
         .fetch_one(pool)
         .await
         .context("Failed to fetch username by id")?;

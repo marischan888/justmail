@@ -1,23 +1,19 @@
-use actix_web::{HttpResponse, http::header::ContentType};
-use actix_web_flash_messages::{IncomingFlashMessages};
-use std::fmt::Write;
 use crate::session_state::TypedSession;
-use crate::utils::{see_other, e500};
+use crate::utils::{e500, see_other};
+use actix_web::{HttpResponse, http::header::ContentType};
+use actix_web_flash_messages::IncomingFlashMessages;
+use std::fmt::Write;
 
-#[tracing::instrument
-(
-    skip(session, flash_messages),
-)]
+#[tracing::instrument(skip(session, flash_messages))]
 pub async fn issue_newsletters_form(
     session: TypedSession,
     flash_messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, actix_web::Error> {
     if session.get_user_id().map_err(e500)?.is_none() {
         return Ok(see_other("/login"));
-    } ;
+    };
     let mut msg_html = String::new();
-    for msg in flash_messages.iter()
-    {
+    for msg in flash_messages.iter() {
         writeln!(msg_html, "<p><i>{}</i></p>", msg.content()).unwrap();
     }
     let idempotency_key = uuid::Uuid::new_v4();
@@ -63,7 +59,7 @@ pub async fn issue_newsletters_form(
             </form>
             <p><a href="/admin/dashboard">Back</a></p>
             </body>
-            </html>"#, msg_html)
-        )
-    )
+            </html>"#,
+            msg_html
+        )))
 }

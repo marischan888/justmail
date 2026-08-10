@@ -10,7 +10,7 @@ async fn you_must_login_to_see_the_change_password_form() {
 }
 
 #[tokio::test]
-async fn you_must_login_to_change_the_password(){
+async fn you_must_login_to_change_the_password() {
     let app = spawn_app().await;
     let new_password = Uuid::new_v4().to_string();
     let body = serde_json::json!({
@@ -24,7 +24,7 @@ async fn you_must_login_to_change_the_password(){
 }
 
 #[tokio::test]
-async fn new_password_must_match(){
+async fn new_password_must_match() {
     let app = spawn_app().await;
     let login_body = serde_json::json!(
         {
@@ -77,9 +77,7 @@ async fn the_current_password_is_invalid() {
     assert_is_redirect_to(&response, "/admin/password");
     // Act 3: flash message info
     let html_page = app.get_change_passworrd().await.text().await.unwrap();
-    assert!(html_page.contains(
-        "<p><i>Wrong current password</i></p>"
-    ));
+    assert!(html_page.contains("<p><i>Wrong current password</i></p>"));
 }
 
 #[tokio::test]
@@ -91,7 +89,7 @@ async fn the_new_password_is_too_short() {
             "password": &app.test_user.password,
         }
     );
-    let new_password =String::from("short");
+    let new_password = String::from("short");
     let reset_body = serde_json::json!(
         {
             "current_password": &app.test_user.password,

@@ -14,7 +14,11 @@ async fn an_error_flash_message_is_set_on_failure() {
     let html_page = app.get_login_html().await;
     assert!(html_page.contains("<p><i>Authentication failed</i></p>"));
     // Act 3: Reload the login page, should not show error message when reload the page
-    assert!(!app.get_login_html().await.contains("<p><i>Authentication failed</i></p>"));
+    assert!(
+        !app.get_login_html()
+            .await
+            .contains("<p><i>Authentication failed</i></p>")
+    );
 }
 
 #[tokio::test]

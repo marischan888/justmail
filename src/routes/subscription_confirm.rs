@@ -1,14 +1,14 @@
-use std::fmt::{Debug};
-use actix_web::http::header::ContentType;
-use actix_web::{HttpResponse, web, ResponseError};
+use crate::routes::subscription::post::{SubscriptionLinkToken, error_chain_fmt};
 use actix_web::http::StatusCode;
+use actix_web::http::header::ContentType;
+use actix_web::{HttpResponse, ResponseError, web};
 use anyhow::Context;
+use askama::Template;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::Deserialize;
 use sqlx::{Executor, PgPool, Postgres};
+use std::fmt::Debug;
 use uuid::Uuid;
-use askama::Template;
-use crate::routes::subscription::post::{SubscriptionLinkToken, error_chain_fmt};
 
 #[derive(Deserialize)]
 pub struct Parameters {
@@ -39,7 +39,6 @@ impl ResponseError for ConfirmError {
     }
 }
 
-
 #[derive(Template)]
 #[template(path = "confirmation.html")]
 struct ConfirmationTemplate<'a> {
@@ -47,12 +46,7 @@ struct ConfirmationTemplate<'a> {
     pub message: &'a str,
 }
 
-#[tracing::instrument
-(
-    name = "Confirming a pending subscriber",
-    skip(parameters, pool)
-)
-]
+#[tracing::instrument(name = "Confirming a pending subscriber", skip(parameters, pool))]
 pub async fn subscription_confirm(
     parameters: web::Query<Parameters>,
     pool: web::Data<PgPool>,
@@ -63,18 +57,14 @@ pub async fn subscription_confirm(
                 .begin()
                 .await
                 .context("Failed to start transaction for confirmation subscription.")?;
-            let token_record = get_record_from_token
-                (
-                    &mut *transaction,
-                    valid_token.as_ref(),
-                )
+            let token_record = get_record_from_token(&mut *transaction, valid_token.as_ref())
                 .await
                 .context("Failed to get subscriber id from the database.")?
                 .ok_or(ConfirmError::UnknownToken)?;
             // check time
             let current_time = Utc::now();
             let duration = current_time - token_record.token_created_at;
-            let confirm_result =  if duration > TimeDelta::days(2) {
+            let confirm_result = if duration > TimeDelta::days(2) {
                 ConfirmLinkResult::LinkExpired
             } else {
                 mark_subscriber_confirmed(&mut *transaction, token_record.subscriber_id)
@@ -87,52 +77,39 @@ pub async fn subscription_confirm(
                 .context("Failed to commit transaction for confirmation subscription.")?;
 
             let html_template = match confirm_result {
-                ConfirmLinkResult::ConfirmSuccess => {
-                    ConfirmationTemplate {
-                        title: "Subscribe Successfully.",
-                        message: "Thank you for your support."
-                    }
-                }
-                ConfirmLinkResult::AlreadyConfirm => {
-                    ConfirmationTemplate {
-                        title: "You have already subscribed.",
-                        message: "Thank you."
-                    }
-                }
-                ConfirmLinkResult::LinkExpired => {
-                    ConfirmationTemplate {
-                        title: "This confirmation link has been expired",
-                        message: "Please subscribe again"
-                    }
-                }
+                ConfirmLinkResult::ConfirmSuccess => ConfirmationTemplate {
+                    title: "Subscribe Successfully.",
+                    message: "Thank you for your support.",
+                },
+                ConfirmLinkResult::AlreadyConfirm => ConfirmationTemplate {
+                    title: "You have already subscribed.",
+                    message: "Thank you.",
+                },
+                ConfirmLinkResult::LinkExpired => ConfirmationTemplate {
+                    title: "This confirmation link has been expired",
+                    message: "Please subscribe again",
+                },
             };
             let html_body = html_template.render().context("can not generate html")?;
-            Ok(
-                HttpResponse::Ok()
-                    .content_type(ContentType::html())
-                    .body(html_body)
-            )
+            Ok(HttpResponse::Ok()
+                .content_type(ContentType::html())
+                .body(html_body))
         }
-        Err(_) => {return Err(ConfirmError::UnknownToken)}
+        Err(_) => return Err(ConfirmError::UnknownToken),
     }
 }
 
-#[tracing::instrument
-(
-    name = "Consume invalid tokens",
-    skip(executor, subscription_token)
-)
-]
+#[tracing::instrument(name = "Consume invalid tokens", skip(executor, subscription_token))]
 pub async fn consume_tokens(
-    executor: impl Executor<'_, Database=Postgres>,
+    executor: impl Executor<'_, Database = Postgres>,
     subscription_token: &str,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "DELETE FROM subscription_tokens WHERE subscription_token = $1",
         subscription_token
     )
-        .execute(executor)
-        .await?;
+    .execute(executor)
+    .await?;
     Ok(())
 }
 
@@ -141,14 +118,12 @@ pub struct TokenRecord {
     token_created_at: DateTime<Utc>,
 }
 
-#[tracing::instrument
-(
+#[tracing::instrument(
     name = "Get subscriber_id from token",
-    skip(executor, subscription_token),
-)
-]
+    skip(executor, subscription_token)
+)]
 pub async fn get_record_from_token(
-    executor: impl Executor<'_, Database=Postgres>,
+    executor: impl Executor<'_, Database = Postgres>,
     subscription_token: &str,
 ) -> Result<Option<TokenRecord>, sqlx::Error> {
     // result: Record{subscriber_id}
@@ -160,10 +135,10 @@ pub async fn get_record_from_token(
         "#,
         subscription_token
     )
-        .fetch_optional(executor)
-        .await?;
+    .fetch_optional(executor)
+    .await?;
 
-    Ok(result.map(|r| TokenRecord{
+    Ok(result.map(|r| TokenRecord {
         subscriber_id: r.subscriber_id,
         token_created_at: r.created_at,
     }))
@@ -191,16 +166,12 @@ pub enum ConfirmLinkResult {
 //    Ok(Action::LinkExpired)
 //}
 
-#[tracing::instrument
-(
-    name = "Mark subscriber as confirmed",
-    skip(executor, subscriber_id),
-)]
+#[tracing::instrument(name = "Mark subscriber as confirmed", skip(executor, subscriber_id))]
 pub async fn mark_subscriber_confirmed(
-    executor: impl Executor<'_, Database=Postgres>,
-    subscriber_id: Uuid
+    executor: impl Executor<'_, Database = Postgres>,
+    subscriber_id: Uuid,
 ) -> Result<ConfirmLinkResult, sqlx::Error> {
-    let n_rows_affected =  sqlx::query!(
+    let n_rows_affected = sqlx::query!(
         r#"
         UPDATE subscriptions 
         SET status = 'confirmed' 

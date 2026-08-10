@@ -1,14 +1,15 @@
 use std::time::Duration;
 
-use sqlx::{PgPool, Transaction, Postgres};
+use sqlx::{PgPool, Postgres, Transaction};
 use tracing::{Span, field::display};
 use uuid::Uuid;
 
-use crate::{configuration::Settings, domain::SubscriberEmail, email_client::EmailClient, startup::get_connection_pool};
+use crate::{
+    configuration::Settings, domain::SubscriberEmail, email_client::EmailClient,
+    startup::get_connection_pool,
+};
 
-pub async fn run_worker_until_stopped(
-    configuration: Settings
-) -> Result<(), anyhow::Error>{
+pub async fn run_worker_until_stopped(configuration: Settings) -> Result<(), anyhow::Error> {
     let connection_pool = get_connection_pool(&configuration.database);
     let email_client = configuration.email_client.client();
     worker_loop(connection_pool, email_client).await
@@ -19,10 +20,7 @@ pub enum ExecutionOutcome {
     EmptyQueue,
 }
 
-async fn worker_loop(
-    pool: PgPool,
-    email_client: EmailClient
-) -> Result<(), anyhow::Error> {
+async fn worker_loop(pool: PgPool, email_client: EmailClient) -> Result<(), anyhow::Error> {
     loop {
         match try_execute_task(&pool, &email_client).await {
             Ok(ExecutionOutcome::EmptyQueue) => {
@@ -47,7 +45,7 @@ async fn worker_loop(
 )]
 pub async fn try_execute_task(
     pool: &PgPool,
-    email_client: &EmailClient
+    email_client: &EmailClient,
 ) -> Result<ExecutionOutcome, anyhow::Error> {
     let task = dequeue_task(pool).await?;
     if task.is_none() {
@@ -63,7 +61,7 @@ pub async fn try_execute_task(
             let issue = get_issue(pool, issue_id).await?;
             if let Err(e) = email_client
                 .send_email(
-                    &email, 
+                    &email,
                     &issue.title,
                     &issue.html_content,
                     &issue.text_content,
@@ -77,14 +75,23 @@ pub async fn try_execute_task(
                     Skipping.",
                 );
                 if attempts >= max_retries {
-                    tracing::warn!("Max retries ({}) reached for {}. Dropping task.", max_retries, email);
+                    tracing::warn!(
+                        "Max retries ({}) reached for {}. Dropping task.",
+                        max_retries,
+                        email
+                    );
                     // delete the failed task
                     delete_task(transaction, issue_id, email.as_ref()).await?;
                 } else {
-                    tracing::info!("Recording failure for {}. Attempt {} of {}", email, attempts + 1, max_retries);
+                    tracing::info!(
+                        "Recording failure for {}. Attempt {} of {}",
+                        email,
+                        attempts + 1,
+                        max_retries
+                    );
                     record_failure(transaction, issue_id, email.as_ref()).await?;
                 }
-                return Err(anyhow::anyhow!(e))
+                return Err(anyhow::anyhow!(e));
             }
         }
         Err(e) => {
@@ -126,14 +133,11 @@ async fn record_failure(
 struct NewsletterIssue {
     title: String,
     text_content: String,
-    html_content: String
+    html_content: String,
 }
 
 #[tracing::instrument(level = "trace", skip_all)]
-async fn get_issue(
-    pool: &PgPool,
-    issue_id: Uuid,
-) -> Result<NewsletterIssue, anyhow::Error> {
+async fn get_issue(pool: &PgPool, issue_id: Uuid) -> Result<NewsletterIssue, anyhow::Error> {
     let issue = sqlx::query_as!(
         NewsletterIssue,
         r#"
@@ -144,15 +148,17 @@ async fn get_issue(
         "#,
         issue_id
     )
-        .fetch_one(pool)
-        .await?;
+    .fetch_one(pool)
+    .await?;
     Ok(issue)
 }
 
 type PgTransaction = Transaction<'static, Postgres>;
 
 #[tracing::instrument(level = "trace", skip_all)]
-async fn dequeue_task(pool: &PgPool) -> Result<Option<(PgTransaction, Uuid, String, i32)>, anyhow::Error> {
+async fn dequeue_task(
+    pool: &PgPool,
+) -> Result<Option<(PgTransaction, Uuid, String, i32)>, anyhow::Error> {
     let mut transaction = pool.begin().await?;
     let record = sqlx::query!(
         r#"
@@ -163,14 +169,14 @@ async fn dequeue_task(pool: &PgPool) -> Result<Option<(PgTransaction, Uuid, Stri
         LIMIT 1
         "#,
     )
-        .fetch_optional(&mut *transaction)
-        .await?;
+    .fetch_optional(&mut *transaction)
+    .await?;
     if let Some(record) = record {
         Ok(Some((
             transaction,
             record.newsletter_issue_id,
             record.subscriber_email,
-            record.attempts
+            record.attempts,
         )))
     } else {
         Ok(None)
@@ -192,9 +198,8 @@ async fn delete_task(
         issue_id,
         email
     )
-        .execute(&mut *transaction)
-        .await?;
+    .execute(&mut *transaction)
+    .await?;
     transaction.commit().await?;
     Ok(())
 }
-

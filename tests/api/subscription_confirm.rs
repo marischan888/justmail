@@ -1,8 +1,8 @@
+use crate::helpers::spawn_app;
 use chrono::{TimeDelta, Utc};
 use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
-use crate::helpers::spawn_app;
 
 #[tokio::test]
 async fn confirmation_without_token_are_rejected_with_a_link() {
@@ -18,19 +18,14 @@ async fn confirmation_failed_if_there_is_a_fatal_database_error() {
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     app.post_subscription(body.into()).await;
-    let received_request = &app.email_server
-        .received_requests()
-        .await
-        .unwrap()[0];
+    let received_request = &app.email_server.received_requests().await.unwrap()[0];
     let confirmation_link = app.get_confirmation_links(&received_request);
     // Act
     sqlx::query!("ALTER TABLE subscription_tokens DROP COLUMN subscriber_id;")
         .execute(&app.db_pool)
         .await
         .unwrap();
-    let response = reqwest::get(confirmation_link.html_link)
-        .await
-        .unwrap();
+    let response = reqwest::get(confirmation_link.html_link).await.unwrap();
     // Arrange
     assert_eq!(response.status().as_u16(), 500);
 }
@@ -41,16 +36,11 @@ async fn confirmation_failed_given_a_unknown_token() {
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     app.post_subscription(body.into()).await;
-    let received_request = &app.email_server
-        .received_requests()
-        .await
-        .unwrap()[0];
+    let received_request = &app.email_server.received_requests().await.unwrap()[0];
     let mut confirmation_link = app.get_confirmation_links(&received_request).html_link;
     confirmation_link.set_query(Some("subscription_token=haha"));
     // Act
-    let response = reqwest::get(confirmation_link)
-        .await
-        .unwrap();
+    let response = reqwest::get(confirmation_link).await.unwrap();
     // Arrange
     assert_eq!(response.status().as_u16(), 401);
 }
@@ -69,15 +59,10 @@ async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
 
     app.post_subscription(body.into()).await;
 
-    let received_request = &app.email_server
-        .received_requests()
-        .await
-        .unwrap()[0];
+    let received_request = &app.email_server.received_requests().await.unwrap()[0];
     let confirmation_link = app.get_confirmation_links(&received_request);
     // Act
-    let response = reqwest::get(confirmation_link.html_link)
-        .await
-        .unwrap();
+    let response = reqwest::get(confirmation_link.html_link).await.unwrap();
     // Assert
     assert_eq!(response.status().as_u16(), 200);
 }
@@ -96,14 +81,9 @@ async fn clicking_on_confirmation_link_confirms_a_subscriber() {
 
     app.post_subscription(body.into()).await;
 
-    let received_request = &app.email_server
-        .received_requests()
-        .await
-        .unwrap()[0];
+    let received_request = &app.email_server.received_requests().await.unwrap()[0];
     let confirmation_link = app.get_confirmation_links(&received_request);
-    reqwest::get(confirmation_link.html_link)
-        .await
-        .unwrap();
+    reqwest::get(confirmation_link.html_link).await.unwrap();
     // Act
     let saved = sqlx::query!("SELECT email, name, status FROM subscriptions")
         .fetch_one(&app.db_pool)
@@ -127,10 +107,7 @@ async fn confirmed_subscriber_click_twice() {
         .await;
 
     app.post_subscription(body.into()).await;
-    let received_request = &app.email_server
-        .received_requests()
-        .await
-        .unwrap()[0];
+    let received_request = &app.email_server.received_requests().await.unwrap()[0];
     let confirmation_link = app.get_confirmation_links(&received_request);
     // Act1: click first for confirming subscription
     let response = reqwest::get(confirmation_link.html_link.clone())
@@ -138,9 +115,7 @@ async fn confirmed_subscriber_click_twice() {
         .unwrap();
     let html_content = response.text().await.unwrap();
     assert!(html_content.contains("<h1>Subscribe Successfully.</h1>"));
-    let response = reqwest::get(confirmation_link.html_link)
-        .await
-        .unwrap();
+    let response = reqwest::get(confirmation_link.html_link).await.unwrap();
     let html_content = response.text().await.unwrap();
     assert!(html_content.contains("<h1>You have already subscribed.</h1>"))
 }
@@ -182,7 +157,10 @@ async fn confirming_link_should_be_expired_after_two_days() {
 
     // Act: Call the confirmation endpoint
     let response = reqwest::Client::new()
-        .get(&format!("{}/subscriptions/confirm?subscription_token={}", app.address, token))
+        .get(&format!(
+            "{}/subscriptions/confirm?subscription_token={}",
+            app.address, token
+        ))
         .send()
         .await
         .expect("Failed to execute request.");
@@ -197,9 +175,8 @@ async fn confirming_link_should_be_expired_after_two_days() {
         r#"SELECT * FROM subscription_tokens WHERE subscription_token = $1"#,
         token
     )
-        .fetch_optional(&app.db_pool)
-        .await
-        .unwrap();
+    .fetch_optional(&app.db_pool)
+    .await
+    .unwrap();
     assert!(saved.is_none());
 }
-

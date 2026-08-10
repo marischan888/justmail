@@ -1,14 +1,10 @@
-use actix_web::{HttpResponse, http::header::ContentType};
-use actix_web_flash_messages::{IncomingFlashMessages};
-use std::fmt::Write;
-use crate::utils::{e500, see_other};
 use crate::session_state::TypedSession;
+use crate::utils::{e500, see_other};
+use actix_web::{HttpResponse, http::header::ContentType};
+use actix_web_flash_messages::IncomingFlashMessages;
+use std::fmt::Write;
 
-
-#[tracing::instrument
-(
-    skip(session, flash_messages),
-)]
+#[tracing::instrument(skip(session, flash_messages))]
 pub async fn change_password_form(
     session: TypedSession,
     flash_messages: IncomingFlashMessages,
@@ -17,8 +13,7 @@ pub async fn change_password_form(
         return Ok(see_other("/login"));
     };
     let mut msg_html = String::new();
-    for msg in flash_messages.iter()
-    {
+    for msg in flash_messages.iter() {
         writeln!(msg_html, "<p><i>{}</i></p>", msg.content()).unwrap();
     }
 
@@ -61,7 +56,7 @@ pub async fn change_password_form(
             </form>
             <p><a href="/admin/dashboard">Back</a></p>
             </body>
-            </html>"#, msg_html)
-        )
-    )
+            </html>"#,
+            msg_html
+        )))
 }

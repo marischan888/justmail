@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Display};
 
 use justmail::configuration::get_configuration;
-use justmail::remove_expired_link_worker::run_token_worker_until_stopped;
-use justmail::startup::{Application};
-use justmail::telemetry::{get_subscriber, init_subscriber};
 use justmail::issue_delivery_worker::run_worker_until_stopped;
+use justmail::remove_expired_link_worker::run_token_worker_until_stopped;
+use justmail::startup::Application;
+use justmail::telemetry::{get_subscriber, init_subscriber};
 use tokio::task::JoinError;
 
 #[tokio::main]
@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
     let application = Application::build(configuration.clone()).await?;
     let application_task = tokio::spawn(application.run_until_stopped());
     // let worker keep issuing email to subscriber
-    let worker_task  = tokio::spawn(run_worker_until_stopped(configuration.clone()));
+    let worker_task = tokio::spawn(run_worker_until_stopped(configuration.clone()));
     // let clear token worker keep clear the expired link token per day
     let token_worker_task = tokio::spawn(run_token_worker_until_stopped(configuration));
 
@@ -33,10 +33,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn report_exit(
-    task_name: &str,
-    outcome: Result<Result<(), impl Debug + Display>, JoinError>
-) {
+fn report_exit(task_name: &str, outcome: Result<Result<(), impl Debug + Display>, JoinError>) {
     match outcome {
         Ok(Ok(())) => {
             tracing::info!("{} has exited", task_name)

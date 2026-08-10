@@ -113,13 +113,13 @@ async fn subscriber_sends_a_confirmation_email_with_a_link() {
 
     app.post_subscription(body.into()).await;
 
-    let received_request = &app.email_server
-        .received_requests()
-        .await
-        .unwrap()[0];
+    let received_request = &app.email_server.received_requests().await.unwrap()[0];
 
     let raw_confirmation_link = app.get_confirmation_links(&received_request);
-    assert_eq!(raw_confirmation_link.html_link, raw_confirmation_link.plain_text);
+    assert_eq!(
+        raw_confirmation_link.html_link,
+        raw_confirmation_link.plain_text
+    );
 }
 
 // test log
@@ -157,13 +157,22 @@ async fn subscriber_will_receive_two_email_when_subscribe_twice_with_same_email(
 
     let request_one = &received_request[0];
     let raw_confirmation_link_one = app.get_confirmation_links(&request_one);
-    assert_eq!(raw_confirmation_link_one.html_link, raw_confirmation_link_one.plain_text);
+    assert_eq!(
+        raw_confirmation_link_one.html_link,
+        raw_confirmation_link_one.plain_text
+    );
 
     let request_two = &received_request[1];
     let raw_confirmation_link_two = app.get_confirmation_links(&request_two);
-    assert_eq!(raw_confirmation_link_two.html_link, raw_confirmation_link_two.plain_text);
+    assert_eq!(
+        raw_confirmation_link_two.html_link,
+        raw_confirmation_link_two.plain_text
+    );
 
-    assert_ne!(raw_confirmation_link_one.token, raw_confirmation_link_two.token);
+    assert_ne!(
+        raw_confirmation_link_one.token,
+        raw_confirmation_link_two.token
+    );
 }
 
 #[tokio::test]
@@ -184,20 +193,35 @@ async fn subscribe_twice_with_same_email_will_get_distinct_token_under_the_same_
     let token_one = app.get_confirmation_links(&received_request[0]).token;
     let token_two = app.get_confirmation_links(&received_request[1]).token;
 
-    let id_one = sqlx::query!("SELECT subscriber_id FROM subscription_tokens WHERE \
+    let id_one = sqlx::query!(
+        "SELECT subscriber_id FROM subscription_tokens WHERE \
     subscription_token = $1",
-        token_one).fetch_one(&app.db_pool).await.unwrap().subscriber_id;
-    let id_two = sqlx::query!("SELECT subscriber_id FROM subscription_tokens WHERE \
+        token_one
+    )
+    .fetch_one(&app.db_pool)
+    .await
+    .unwrap()
+    .subscriber_id;
+    let id_two = sqlx::query!(
+        "SELECT subscriber_id FROM subscription_tokens WHERE \
     subscription_token = $1",
-        token_two).fetch_one(&app.db_pool).await.unwrap().subscriber_id;
+        token_two
+    )
+    .fetch_one(&app.db_pool)
+    .await
+    .unwrap()
+    .subscriber_id;
     let subscriber_cnt = sqlx::query!(
         r#"
         SELECT COUNT(*) FROM subscriptions
         WHERE email = 'ursula_le_guin@gmail.com'
         "#
     )
-        .fetch_one(&app.db_pool)
-        .await.unwrap().count.unwrap();
+    .fetch_one(&app.db_pool)
+    .await
+    .unwrap()
+    .count
+    .unwrap();
 
     // Arrange
     assert_ne!(token_one, token_two);
@@ -218,20 +242,20 @@ async fn subscribe_twice_with_distinct_name_and_same_email_will_update_name_only
         .await;
     // Act
     app.post_subscription(body_one.into()).await;
-    let name_before = sqlx::query!(
-        "SELECT name FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'"
-    )
-        .fetch_one(&app.db_pool)
-        .await
-        .unwrap().name;
+    let name_before =
+        sqlx::query!("SELECT name FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'")
+            .fetch_one(&app.db_pool)
+            .await
+            .unwrap()
+            .name;
 
     app.post_subscription(body_two.into()).await;
-    let name_update = sqlx::query!(
-        "SELECT name FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'"
-    )
-        .fetch_one(&app.db_pool)
-        .await
-        .unwrap().name;
+    let name_update =
+        sqlx::query!("SELECT name FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'")
+            .fetch_one(&app.db_pool)
+            .await
+            .unwrap()
+            .name;
     // Arrange
     assert_eq!(name_update.as_str(), "Canary");
     assert_eq!(name_before.as_str(), "le guin");
@@ -261,8 +285,11 @@ async fn confirmed_subscriber_receive_new_link_using_distinct_email() {
     let query_result = sqlx::query!(
         r#"
         SELECT COUNT(*) FROM subscriptions WHERE name = 'le guin'
-        "#)
-        .fetch_one(&app.db_pool).await.unwrap();
+        "#
+    )
+    .fetch_one(&app.db_pool)
+    .await
+    .unwrap();
     // Arrange
     assert_ne!(token_one, token_two);
     assert_eq!(query_result.count.unwrap(), 2);
@@ -291,14 +318,20 @@ async fn confirmed_subscriber_can_not_get_the_link_again_with_the_same_email() {
         r#"
         SELECT id FROM subscriptions WHERE email = 'ursula_le_guin@gmail.com'
         "#
-    ).fetch_one(&app.db_pool).await.unwrap().id;
+    )
+    .fetch_one(&app.db_pool)
+    .await
+    .unwrap()
+    .id;
     let stored_token = sqlx::query!(
         r#"
         SELECT subscription_token FROM subscription_tokens WHERE subscriber_id = $1
         "#,
         subscriber_id
     )
-        .fetch_one(&app.db_pool)
-        .await.unwrap().subscription_token;
+    .fetch_one(&app.db_pool)
+    .await
+    .unwrap()
+    .subscription_token;
     assert_eq!(token, stored_token)
 }

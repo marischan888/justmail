@@ -1,15 +1,15 @@
-use argon2::{Argon2, PasswordHasher, Algorithm, Params, Version};
 use argon2::password_hash::phc::SaltString;
+use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
+use justmail::configuration::{DatabaseSettings, get_configuration};
 use justmail::email_client::EmailClient;
-use justmail::issue_delivery_worker::{try_execute_task, ExecutionOutcome};
-use linkify::{LinkFinder, LinkKind};
-use justmail::configuration::{get_configuration, DatabaseSettings};
-use justmail::startup::{get_connection_pool, Application};
+use justmail::issue_delivery_worker::{ExecutionOutcome, try_execute_task};
+use justmail::startup::{Application, get_connection_pool};
 use justmail::telemetry::{get_subscriber, init_subscriber};
+use linkify::{LinkFinder, LinkKind};
+use once_cell::sync::Lazy;
+use reqwest::Response;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
-use once_cell::sync::Lazy;
-use reqwest::{Response};
 use wiremock::MockServer;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -23,7 +23,6 @@ static TRACING: Lazy<()> = Lazy::new(|| {
         init_subscriber(subscriber);
     };
 });
-
 
 pub struct TestApp {
     pub db_pool: PgPool,
@@ -43,11 +42,11 @@ pub struct ConfirmationLinks {
     pub plain_text: reqwest::Url,
     pub token: String,
 }
- pub struct TestUser {
-     pub user_id: Uuid,
-     pub username: String,
-     pub password: String,
- }
+pub struct TestUser {
+    pub user_id: Uuid,
+    pub username: String,
+    pub password: String,
+}
 
 impl TestUser {
     pub fn generate() -> Self {
@@ -77,19 +76,19 @@ impl TestUser {
             self.username,
             password_hash
         )
-            .execute(pool)
-            .await
-            .expect("Failed to store test user.");
+        .execute(pool)
+        .await
+        .expect("Failed to store test user.");
     }
 }
 impl TestApp {
     pub async fn dispatch_all_pending_emails(&self) {
         loop {
             // when error occur, directly unwrap
-            if let ExecutionOutcome::EmptyQueue = 
-            try_execute_task(&self.db_pool, &self.email_client)
-                .await
-                .unwrap()
+            if let ExecutionOutcome::EmptyQueue =
+                try_execute_task(&self.db_pool, &self.email_client)
+                    .await
+                    .unwrap()
             {
                 break;
             }
@@ -112,8 +111,8 @@ impl TestApp {
             .expect("Failed to get change password html")
     }
     pub async fn post_change_password<Body>(&self, body: &Body) -> Response
-        where
-            Body: serde::Serialize
+    where
+        Body: serde::Serialize,
     {
         self.api_client
             .post(&format!("{}/admin/password", &self.address))
@@ -143,8 +142,8 @@ impl TestApp {
     }
 
     pub async fn post_login<Body>(&self, body: &Body) -> Response
-        where
-            Body: serde::Serialize
+    where
+        Body: serde::Serialize,
     {
         self.api_client
             .post(&format!("{}/login", self.address))
@@ -163,9 +162,9 @@ impl TestApp {
     }
 
     // migrate from json_body and basic auth to url encoded body
-    pub async fn post_newsletters<Body>(&self, body: &Body) -> Response 
-        where
-            Body: serde::Serialize
+    pub async fn post_newsletters<Body>(&self, body: &Body) -> Response
+    where
+        Body: serde::Serialize,
     {
         self.api_client
             .post(&format!("{}/admin/newsletters", &self.address))
@@ -200,7 +199,7 @@ impl TestApp {
         let get_link = |s: &str| {
             let links: Vec<_> = LinkFinder::new()
                 .links(s)
-                .filter(|x| {*x.kind() == LinkKind::Url})
+                .filter(|x| *x.kind() == LinkKind::Url)
                 .collect();
             assert_eq!(links.len(), 1);
             let raw_link = links[0].as_str().to_owned();
@@ -219,7 +218,11 @@ impl TestApp {
             .map(|(_, value)| value.into_owned())
             .expect("Subscription token not found in the URL");
 
-        ConfirmationLinks { html_link, plain_text, token }
+        ConfirmationLinks {
+            html_link,
+            plain_text,
+            token,
+        }
     }
 }
 
@@ -263,7 +266,7 @@ pub async fn spawn_app() -> TestApp {
         port: application_port,
         test_user: TestUser::generate(),
         api_client: client,
-        email_client: configurations.email_client.client()
+        email_client: configurations.email_client.client(),
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app

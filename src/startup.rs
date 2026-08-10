@@ -1,22 +1,24 @@
-use actix_web::dev::Server;
-use actix_web::middleware::from_fn;
-use actix_web::{web, web::Data, App, HttpServer};
-use sqlx::{PgPool};
-use std::net::TcpListener;
+use crate::authentication::reject_anonymous_user;
+use crate::configuration::{DatabaseSettings, Settings};
+use crate::email_client::EmailClient;
+use crate::routes::{
+    admin_dashboard, change_password, change_password_form, health_check, home, issue_newsletters,
+    issue_newsletters_form, log_out, login, login_form, subscribe, subscribe_form,
+    subscription_confirm,
+};
 use actix_session::SessionMiddleware;
 use actix_session::storage::RedisSessionStore;
 use actix_web::cookie::Key;
+use actix_web::dev::Server;
+use actix_web::middleware::from_fn;
+use actix_web::{App, HttpServer, web, web::Data};
 use actix_web_flash_messages::FlashMessagesFramework;
 use actix_web_flash_messages::storage::CookieMessageStore;
 use secrecy::{ExposeSecret, SecretString};
+use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
-use crate::authentication::{reject_anonymous_user};
-use crate::routes::{
-    admin_dashboard, change_password, change_password_form, health_check, home, issue_newsletters, issue_newsletters_form, log_out, login, login_form, subscribe, subscribe_form, subscription_confirm
-};
-use crate::email_client::EmailClient;
-use crate::configuration::{DatabaseSettings, Settings};
 
 pub struct Application {
     port: u16,
@@ -36,9 +38,7 @@ impl Application {
             .email_client
             .sender()
             .expect("Invalid sender address.");
-        let timeout = configuration
-            .email_client
-            .timeout();
+        let timeout = configuration.email_client.timeout();
         let email_client = EmailClient::new(
             configuration.email_client.base_url,
             sender_email,
@@ -47,23 +47,22 @@ impl Application {
         );
         let address = format!(
             "{}:{}",
-            configuration.application.host,
-            configuration.application.port
+            configuration.application.host, configuration.application.port
         );
         let listener = TcpListener::bind(address)?;
         let port = listener.local_addr()?.port();
 
-        let server = run
-            (
-                listener,
-                connection_pool,
-                email_client,
-                configuration.application.base_url,
-                configuration.application.hmac_secret,
-                configuration.redis_uri,
-            ).await?;
+        let server = run(
+            listener,
+            connection_pool,
+            email_client,
+            configuration.application.base_url,
+            configuration.application.hmac_secret,
+            configuration.redis_uri,
+        )
+        .await?;
 
-        Ok(Self {port, server})
+        Ok(Self { port, server })
     }
 
     pub fn port(&self) -> u16 {
@@ -76,9 +75,7 @@ impl Application {
     }
 }
 
-pub fn get_connection_pool(
-    database: &DatabaseSettings
-) -> PgPool {
+pub fn get_connection_pool(database: &DatabaseSettings) -> PgPool {
     PgPoolOptions::new()
         .acquire_timeout(std::time::Duration::from_secs(2))
         .connect_lazy_with(database.with_db())
@@ -87,8 +84,7 @@ pub fn get_connection_pool(
 #[derive(Clone)]
 pub struct HmacSecret(pub SecretString);
 
-pub async fn run
-(
+pub async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
@@ -96,7 +92,7 @@ pub async fn run
     hmac_secret: SecretString,
     redis_uri: SecretString,
 ) -> Result<Server, anyhow::Error> {
-    let db_pool  = Data::new(db_pool);
+    let db_pool = Data::new(db_pool);
     let email_client = Data::new(email_client);
     let base_url = Data::new(ApplicationBaseUrl(base_url));
     // actix-web-flash-message setup
@@ -112,25 +108,28 @@ pub async fn run
             .route("/health_check", web::get().to(health_check))
             .service(
                 web::scope("")
-                .wrap(message_framework.clone())
-                .wrap(SessionMiddleware::new(redis_store.clone(), signed_key.clone()))
-                .wrap(TracingLogger::default())
-                .route("/subscription", web::post().to(subscribe))
-                .route("/subscription", web::get().to(subscribe_form))
-                .route("/subscription/confirm", web::get().to(subscription_confirm))
-                .route("/", web::get().to(home))
-                .route("/login", web::get().to(login_form))
-                .route("/login", web::post().to(login))
-                .service(
-                    web::scope("/admin")
-                    .wrap(from_fn(reject_anonymous_user))
-                    .route("/dashboard", web::get().to(admin_dashboard))
-                    .route("/password", web::post().to(change_password))
-                    .route("/password", web::get().to(change_password_form))
-                    .route("/newsletters", web::get().to(issue_newsletters_form))
-                    .route("/newsletters", web::post().to(issue_newsletters))
-                    .route("/logout", web::post().to(log_out))
-                )
+                    .wrap(message_framework.clone())
+                    .wrap(SessionMiddleware::new(
+                        redis_store.clone(),
+                        signed_key.clone(),
+                    ))
+                    .wrap(TracingLogger::default())
+                    .route("/subscription", web::post().to(subscribe))
+                    .route("/subscription", web::get().to(subscribe_form))
+                    .route("/subscription/confirm", web::get().to(subscription_confirm))
+                    .route("/", web::get().to(home))
+                    .route("/login", web::get().to(login_form))
+                    .route("/login", web::post().to(login))
+                    .service(
+                        web::scope("/admin")
+                            .wrap(from_fn(reject_anonymous_user))
+                            .route("/dashboard", web::get().to(admin_dashboard))
+                            .route("/password", web::post().to(change_password))
+                            .route("/password", web::get().to(change_password_form))
+                            .route("/newsletters", web::get().to(issue_newsletters_form))
+                            .route("/newsletters", web::post().to(issue_newsletters))
+                            .route("/logout", web::post().to(log_out)),
+                    ),
             )
             .app_data(db_pool.clone()) // db connection registration
             .app_data(email_client.clone()) // http client registration

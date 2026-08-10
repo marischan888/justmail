@@ -26,14 +26,14 @@ impl AsRef<str> for SubscriberEmail {
 }
 
 #[cfg(test)]
-mod tests{
-    use fake::faker::internet::en::SafeEmail;
-    use fake::Fake;
+mod tests {
     use crate::domain::SubscriberEmail;
     use claims::assert_err;
-    use quickcheck_macros::quickcheck;
+    use fake::Fake;
+    use fake::faker::internet::en::SafeEmail;
     use fake::rand::SeedableRng;
     use fake::rand::rngs::StdRng;
+    use quickcheck_macros::quickcheck;
 
     #[derive(Debug, Clone)]
     struct ValidEmailFixture(pub String);

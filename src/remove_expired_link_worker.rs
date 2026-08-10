@@ -4,17 +4,13 @@ use sqlx::PgPool;
 
 use crate::{configuration::Settings, startup::get_connection_pool};
 
-pub async fn run_token_worker_until_stopped(
-    configuration: Settings
-) -> Result<(), anyhow::Error>{
+pub async fn run_token_worker_until_stopped(configuration: Settings) -> Result<(), anyhow::Error> {
     let connection_pool = get_connection_pool(&configuration.database);
     token_worker_loop(connection_pool).await
 }
 
 //TODO: Not sure if i need the retry logic
-async fn token_worker_loop(
-    pool: PgPool,
-) -> Result<(), anyhow::Error> {
+async fn token_worker_loop(pool: PgPool) -> Result<(), anyhow::Error> {
     loop {
         match try_clear_expired_token(&pool).await {
             Ok(ClearTokenOutcome::EmptyQueue) => {
@@ -33,14 +29,8 @@ pub enum ClearTokenOutcome {
     EmptyQueue,
 }
 
-#[tracing::instrument(
-    level = "trace",
-    skip_all,
-    err,
-)]
-pub async fn try_clear_expired_token(
-    pool: &PgPool
-) -> Result<ClearTokenOutcome, anyhow::Error>{
+#[tracing::instrument(level = "trace", skip_all, err)]
+pub async fn try_clear_expired_token(pool: &PgPool) -> Result<ClearTokenOutcome, anyhow::Error> {
     // single query is atomic by default in pgpool, so do not need a transaction
     let n_rows_affected = sqlx::query!(
         r#"
@@ -48,9 +38,9 @@ pub async fn try_clear_expired_token(
         WHERE created_at < NOW() - INTERVAL '2 days'
         "#,
     )
-        .execute(pool)
-        .await?
-        .rows_affected();
+    .execute(pool)
+    .await?
+    .rows_affected();
     if n_rows_affected != 0 {
         Ok(ClearTokenOutcome::TaskCompleted)
     } else {

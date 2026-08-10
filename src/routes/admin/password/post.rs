@@ -8,7 +8,6 @@ use crate::authentication::{AuthError, Credentials, UserId, validate_credentials
 use crate::routes::admin::dashboard::get_username;
 use crate::utils::{e500, see_other};
 
-
 #[derive(serde::Deserialize)]
 pub struct FormData {
     current_password: SecretString,
@@ -29,17 +28,28 @@ pub async fn change_password(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
     user_id: web::ReqData<UserId>,
-) -> Result<HttpResponse, actix_web::Error>{
+) -> Result<HttpResponse, actix_web::Error> {
     let user_id = user_id.into_inner();
     // distinct new password
     if form.new_password.expose_secret() != form.check_password.expose_secret() {
-        FlashMessage::error("You enter two different new password - this field value must be the same").send();
+        FlashMessage::error(
+            "You enter two different new password - this field value must be the same",
+        )
+        .send();
         return Ok(see_other("/admin/password"));
     };
     // short new password
-    if ! ValidateLength::validate_length(&form.new_password.expose_secret(), Some(12), Some(128), None) {
-        FlashMessage::error("Password should be longer than 12 characters but shorter than 128 characters.").send();
-        return Ok(see_other("/admin/password"))
+    if !ValidateLength::validate_length(
+        &form.new_password.expose_secret(),
+        Some(12),
+        Some(128),
+        None,
+    ) {
+        FlashMessage::error(
+            "Password should be longer than 12 characters but shorter than 128 characters.",
+        )
+        .send();
+        return Ok(see_other("/admin/password"));
     }
 
     let user_name = get_username(*user_id, &pool).await.map_err(e500)?;
@@ -55,10 +65,12 @@ pub async fn change_password(
                 Ok(see_other("/admin/password"))
             }
             AuthError::UnexpectedError(_) => Err(e500(e).into()),
-        }
+        };
     }
-    
-    crate::authentication::insert_new_password(*user_id, form.0.new_password, &pool).await.map_err(e500)?;
+
+    crate::authentication::insert_new_password(*user_id, form.0.new_password, &pool)
+        .await
+        .map_err(e500)?;
     FlashMessage::error("Your password has been changed.").send();
     Ok(see_other("/admin/password"))
 }

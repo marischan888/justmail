@@ -1,7 +1,7 @@
 // http client for Rest Api
+use crate::domain::SubscriberEmail;
 use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
-use crate::domain::SubscriberEmail;
 
 pub struct EmailClient {
     http_client: Client,
@@ -11,15 +11,13 @@ pub struct EmailClient {
 }
 
 impl EmailClient {
-    pub fn new(base_url: String,
-               sender_email: SubscriberEmail,
-               auth_token: SecretString,
-               timeout: std::time::Duration
+    pub fn new(
+        base_url: String,
+        sender_email: SubscriberEmail,
+        auth_token: SecretString,
+        timeout: std::time::Duration,
     ) -> Self {
-        let http_client = Client::builder()
-            .timeout(timeout)
-            .build()
-            .unwrap();
+        let http_client = Client::builder().timeout(timeout).build().unwrap();
         Self {
             http_client,
             base_url,
@@ -45,14 +43,11 @@ impl EmailClient {
         };
         self.http_client
             .post(&url)
-            .header(
-                "X-Postmark-Server-Token",
-                self.auth_token.expose_secret(),
-            )
+            .header("X-Postmark-Server-Token", self.auth_token.expose_secret())
             .json(&request_body)
             .send()
             .await?
-            .error_for_status()?;  // here is the http response error handler
+            .error_for_status()?; // here is the http response error handler
         Ok(())
     }
 }
@@ -68,15 +63,15 @@ struct SendEmailRequest<'a> {
 }
 #[cfg(test)]
 mod tests {
-    use claims::{assert_err, assert_ok};
     use crate::domain::SubscriberEmail;
-    use crate::email_client::{EmailClient};
+    use crate::email_client::EmailClient;
+    use claims::{assert_err, assert_ok};
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
-    use secrecy::{SecretString};
-    use wiremock::matchers::{header_exists, header, path, method, any};
-    use wiremock::{Mock, MockServer, ResponseTemplate, Request, Match};
+    use secrecy::SecretString;
+    use wiremock::matchers::{any, header, header_exists, method, path};
+    use wiremock::{Match, Mock, MockServer, Request, ResponseTemplate};
 
     struct SendEmailBodyMatcher;
 
@@ -110,7 +105,7 @@ mod tests {
             .and(method("POST"))
             .and(SendEmailBodyMatcher)
             .respond_with(ResponseTemplate::new(200))
-            .expect(1)// mock expectation
+            .expect(1) // mock expectation
             .mount(&mock_server)
             .await;
         // Act
@@ -128,7 +123,7 @@ mod tests {
 
         Mock::given(any())
             .respond_with(ResponseTemplate::new(500))
-            .expect(1)// mock expectation
+            .expect(1) // mock expectation
             .mount(&mock_server)
             .await;
 
@@ -142,12 +137,12 @@ mod tests {
     async fn send_email_times_out_if_the_server_takes_too_long() {
         let mock_server = MockServer::start().await;
         let email_client = email_client(mock_server.uri(), email());
-        let mock_response = ResponseTemplate::new(200)
-            .set_delay(std::time::Duration::from_secs(180));
+        let mock_response =
+            ResponseTemplate::new(200).set_delay(std::time::Duration::from_secs(180));
 
         Mock::given(any())
             .respond_with(mock_response)
-            .expect(1)// mock expectation
+            .expect(1) // mock expectation
             .mount(&mock_server)
             .await;
 

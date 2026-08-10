@@ -1,9 +1,9 @@
-use std::ops::Deref;
-use actix_web::error::InternalError;
-use actix_web::{FromRequest, HttpMessage};
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::error::InternalError;
 use actix_web::middleware::Next;
+use actix_web::{FromRequest, HttpMessage};
+use std::ops::Deref;
 use uuid::Uuid;
 
 use crate::session_state::TypedSession;
@@ -20,7 +20,7 @@ impl std::fmt::Display for UserId {
 
 impl Deref for UserId {
     type Target = Uuid;
-    
+
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -28,7 +28,7 @@ impl Deref for UserId {
 
 pub async fn reject_anonymous_user(
     mut req: ServiceRequest,
-    next: Next<impl MessageBody>
+    next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<impl MessageBody>, actix_web::Error> {
     let session = {
         let (http_request, payload) = req.parts_mut();
@@ -39,7 +39,7 @@ pub async fn reject_anonymous_user(
         Some(user_id) => {
             req.extensions_mut().insert(UserId(user_id));
             next.call(req).await
-        },
+        }
         None => {
             let response = see_other("/login");
             let e = anyhow::anyhow!("The user has not logged in.");

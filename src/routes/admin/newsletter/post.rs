@@ -1,12 +1,12 @@
+use crate::authentication::UserId;
+use crate::idempotency::{IdempotencyKey, NextAction, save_response, try_processing};
+use crate::utils::{e400, e500, see_other};
 use actix_web::{HttpResponse, web};
 use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
-use sqlx::{PgPool, Postgres, Executor};
 use askama::Template;
+use sqlx::{Executor, PgPool, Postgres};
 use uuid::Uuid;
-use crate::authentication::UserId;
-use crate::idempotency::{IdempotencyKey, NextAction, save_response, try_processing};
-use crate::utils::{e500, see_other, e400};
 
 #[derive(Template)]
 #[template(path = "newsletter.html")]
@@ -25,7 +25,6 @@ fn success_message() -> FlashMessage {
     FlashMessage::info("You has issued newsletter to all your subscribers.")
 }
 
-
 #[tracing::instrument
 (
     name = "Send email to the subscriber"
@@ -40,7 +39,7 @@ pub async fn issue_newsletters(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
     user_id: web::ReqData<UserId>,
-) -> Result<HttpResponse, actix_web::Error>{
+) -> Result<HttpResponse, actix_web::Error> {
     let FormData {
         title,
         content,
@@ -55,7 +54,7 @@ pub async fn issue_newsletters(
         NextAction::StartProcessing(t) => t,
         NextAction::ReturnSavedResponse(saved_response) => {
             success_message().send();
-            return Ok(saved_response)
+            return Ok(saved_response);
         }
     };
     // format html
@@ -65,12 +64,7 @@ pub async fn issue_newsletters(
     };
     let html_body = html_template.render().map_err(e500)?;
     // insert into the issue table and enqueue the task for background worker to send email
-    let issue_id = insert_newsletter_issue(
-        &mut *transaction, 
-        &title,
-        &content,
-        html_body.as_ref()
-    )
+    let issue_id = insert_newsletter_issue(&mut *transaction, &title, &content, html_body.as_ref())
         .await
         .context("Failed to store newsletter issue details")
         .map_err(e500)?;
@@ -103,7 +97,7 @@ fn text_to_simple_html(text: String) -> String {
 
 #[tracing::instrument(skip_all)]
 async fn insert_newsletter_issue(
-    executor: impl Executor<'_, Database=Postgres>,
+    executor: impl Executor<'_, Database = Postgres>,
     title: &str,
     text_content: &str,
     html_content: &str,
@@ -125,14 +119,14 @@ async fn insert_newsletter_issue(
         text_content,
         html_content
     )
-        .execute(executor)
-        .await?;
+    .execute(executor)
+    .await?;
     Ok(newsletter_issue_id)
 }
 
 #[tracing::instrument(skip_all)]
 async fn enqueue_delivery_tasks(
-    executor: impl Executor<'_, Database=Postgres>,
+    executor: impl Executor<'_, Database = Postgres>,
     newsletter_issue_id: Uuid,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
@@ -147,7 +141,7 @@ async fn enqueue_delivery_tasks(
         "#,
         newsletter_issue_id,
     )
-        .execute(executor)
-        .await?;
+    .execute(executor)
+    .await?;
     Ok(())
 }

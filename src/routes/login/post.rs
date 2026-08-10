@@ -1,18 +1,18 @@
-use crate::authentication::{validate_credentials, AuthError, Credentials};
+use crate::authentication::{AuthError, Credentials, validate_credentials};
 use crate::routes::error_chain_fmt;
+use crate::session_state::TypedSession;
 use crate::utils::see_other;
 use actix_web::error::InternalError;
-use actix_web::{web, HttpResponse};
+use actix_web::{HttpResponse, web};
 use actix_web_flash_messages::FlashMessage;
-use secrecy::{SecretString};
+use secrecy::SecretString;
 use serde::Deserialize;
 use sqlx::PgPool;
-use crate::session_state::TypedSession;
 
 #[derive(Deserialize)]
 pub struct FormData {
     username: String,
-    password: SecretString
+    password: SecretString,
 }
 
 #[derive(thiserror::Error)]
@@ -44,12 +44,11 @@ pub async fn login(
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
         username: form.0.username,
-        password: form.0.password
+        password: form.0.password,
     };
     match validate_credentials(credentials, &pool).await {
         Ok(user_id) => {
-            tracing::Span::current()
-                .record("userid", &tracing::field::display(&user_id));
+            tracing::Span::current().record("userid", &tracing::field::display(&user_id));
             session.renew();
             session
                 .insert_user_id(user_id)
