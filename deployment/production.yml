@@ -1,17 +1,20 @@
 services:
   db:
-    image: postgres:18
+    build:
+      context: ..
+      dockerfile: deployment/postgres.Dockerfile
     container_name: justmail-postgres
     environment:
-      POSTGRES_USER: ${APP_DATABASE__USERNAME}
-      POSTGRES_PASSWORD: ${APP_DATABASE__PASSWORD}
-      POSTGRES_DB: ${APP_DATABASE__DATABASE_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_DATABASE__USERNAME: ${APP_DATABASE__USERNAME}
+      APP_DATABASE__PASSWORD: ${APP_DATABASE__PASSWORD}
     volumes:
       - ${DB_DATA_LOCATION}:/var/lib/postgresql
     networks:
       - justmail
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -53,7 +56,8 @@ services:
   migrator:
     container_name: justmail-migrator
     build:
-      context: .
+      context: ..
+      dockerfile: deployment/justmail.Dockerfile
     environment:
       DATABASE_URL: postgres://${APP_DATABASE__USERNAME}:${APP_DATABASE__PASSWORD}@${APP_DATABASE__HOST}:${APP_DATABASE__PORT}/${APP_DATABASE__DATABASE_NAME}
     depends_on:
@@ -61,19 +65,31 @@ services:
         condition: service_healthy
     networks:
       - justmail
-    entrypoint: ["sqlx", "migrate", "run"]
+    entrypoint: ["sh", "-c", "sqlx database create && sqlx migrate run"]
 
   justmail:
     container_name: justmail
     build:
-      context: .
-    env_file:
-      - .env
+      context: ..
+      dockerfile: deployment/justmail.Dockerfile
+    environment:
+      APP_DATABASE__USERNAME: ${APP_DATABASE__USERNAME}
+      APP_DATABASE__PASSWORD: ${APP_DATABASE__PASSWORD}
+      APP_DATABASE__DATABASE_NAME: ${APP_DATABASE__DATABASE_NAME}
+      APP_DATABASE__HOST: ${APP_DATABASE__HOST}
+      APP_DATABASE__PORT: ${APP_DATABASE__PORT}
+      APP_DATABASE__REQUIRE_SSL: ${APP_DATABASE__REQUIRE_SSL}
+      APP_APPLICATION__BASE_URL: ${APP_APPLICATION__BASE_URL}
+      APP_REDIS_URI: ${APP_REDIS_URI}
+      APP_EMAIL_CLIENT__AUTH_TOKEN: ${APP_EMAIL_CLIENT__AUTH_TOKEN}
+      APP_APPLICATION__HMAC_SECRET: ${APP_APPLICATION__HMAC_SECRET}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     networks:
       - justmail
       - web

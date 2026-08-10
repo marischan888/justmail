@@ -24,18 +24,17 @@ RUN cargo binstall -y sqlx-cli \
   && rm -rf /usr/local/cargo/registry/cache/* \
   && rm -rf /usr/local/cargo/registry/src/*
 
-# Rumetime stage
+# We do not need the Rust toolchain to run the binary!
 FROM debian:trixie-slim AS runtime
 WORKDIR /app
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends openssl ca-certificates curl \
-    && apt-get autoremove -y \
-    && apt-get clean -y \
-    && rm -rf /var/lib/apt/lists/*
-# copy the compiled binary from the builder to runtime env
+  && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && apt-get autoremove -y \
+  && apt-get clean -y \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/justmail justmail
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
-# copy config files to runtime
+
 COPY configuration configuration
 COPY migrations migrations
 

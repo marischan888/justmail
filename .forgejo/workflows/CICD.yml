@@ -1,0 +1,187 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   branches:
+  #     - main
+
+env:
+  CARGO_TERM_COLOR: always
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: password
+  POSTGRES_DB: newsletter
+
+jobs:
+  lint:
+    name: Clippy & Format
+    runs-on: ubuntu-rust
+    env:
+      SQLX_OFFLINE: true
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Cache Cargo Dependencies
+        uses: https://github.com/Swatinem/rust-cache@v2
+      - name: Check Formatting
+        run: cargo fmt --check
+      - name: Run Clippy Linter
+        run: cargo clippy -- -D warnings
+
+  test:
+    name: Integration Tests
+    needs: [lint]
+    runs-on: ubuntu-rust
+    # Service containers to run alongside the `test` container job
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Cache Cargo Dependencies
+        uses: https://github.com/Swatinem/rust-cache@v2
+
+      - name: Install sqlx-cli
+        run: |
+          wget --progress=dot:giga https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz \
+          && tar -xvf cargo-binstall-x86_64-unknown-linux-musl.tgz \
+          && cp cargo-binstall /usr/local/cargo/bin \
+          && rm cargo-binstall-x86_64-unknown-linux-musl.tgz
+          cargo binstall -y sqlx-cli \
+          && rm -rf /usr/local/cargo/registry/cache/* \
+          && rm -rf /usr/local/cargo/registry/src/*
+
+      - name: Migrate Database
+        env:
+          DATABASE_URL: "postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@postgres:5432/${{ env.POSTGRES_DB }}"
+        run: |
+          sqlx database create
+          sqlx migrate run
+
+      - name: Run Tests
+        env:
+          APP_DATABASE__USERNAME: ${{ env.POSTGRES_USER }}
+          APP_DATABASE__PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          APP_DATABASE__DATABASE_NAME: ${{ env.POSTGRES_DB }}
+          APP_DATABASE__HOST: postgres
+          APP_DATABASE__PORT: 5432
+          APP_DATABASE__REQUIRE_SSL: false
+          APP_REDIS_URI: redis://redis:6379
+        run: |
+          ulimit -n 4096
+          cargo test
+
+      - name: Check that queries are fresh
+        env:
+          DATABASE_URL: "postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@postgres:5432/${{ env.POSTGRES_DB }}"
+        run: |
+          cargo sqlx prepare --workspace --check -- --all-targets
+
+  coverage:
+    name: Code coverage
+    needs: [lint]
+    runs-on: ubuntu-rust
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Cache Cargo Dependencies
+        uses: https://github.com/Swatinem/rust-cache@v2
+      - name: Install sqlx-cli
+        run: |
+          wget --progress=dot:giga https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz \
+          && tar -xvf cargo-binstall-x86_64-unknown-linux-musl.tgz \
+          && cp cargo-binstall /usr/local/cargo/bin \
+          && rm cargo-binstall-x86_64-unknown-linux-musl.tgz
+          cargo binstall -y sqlx-cli \
+          && rm -rf /usr/local/cargo/registry/cache/* \
+          && rm -rf /usr/local/cargo/registry/src/*
+      - name: Migrate Database
+        env:
+          DATABASE_URL: "postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@postgres:${{ vars.APP_DATABASE__PORT }}/${{ env.POSTGRES_DB }}"
+        run: |
+          sqlx database create
+          sqlx migrate run
+      - name: Install cargo-llvm-cov
+        uses: https://github.com/taiki-e/install-action@cargo-llvm-cov
+      - name: Generate code coverage
+        env:
+          APP_DATABASE__USERNAME: ${{ env.POSTGRES_USER }}
+          APP_DATABASE__PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          APP_DATABASE__DATABASE_NAME: ${{ env.POSTGRES_DB }}
+          APP_DATABASE__HOST: postgres
+          APP_DATABASE__PORT: 5432
+          APP_DATABASE__REQUIRE_SSL: false
+          APP_REDIS_URI: redis://redis:6379
+        run: |
+          ulimit -n 4096
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      - name: Generate report
+        run: |
+          cargo llvm-cov report --html --output-dir coverage
+      - uses: actions/upload-artifact@v3
+        with:
+          name: "Coverage report"
+          path: coverage/
+
+  deploy:
+    name: Build & Deploy Locally
+    needs: [test]
+    runs-on: ubuntu-rust
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Deploy Application Stack
+        env:
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+
+          REDIS_URI: ${{ vars.APP_REDIS_URI }}
+
+          APP_DATABASE__USERNAME: ${{ vars.APP_DATABASE__USERNAME }}
+          APP_DATABASE__PASSWORD: ${{ secrets.APP_DATABASE__PASSWORD }}
+          APP_DATABASE__DATABASE_NAME: ${{ vars.APP_DATABASE__DATABASE_NAME }}
+          APP_DATABASE__HOST: ${{ vars.APP_DATABASE__HOST }}
+          APP_DATABASE__PORT: ${{ vars.APP_DATABASE__PORT }}
+          APP_DATABASE__REQUIRE_SSL: ${{ vars.APP_DATABASE__REQUIRE_SSL }}
+          APP_APPLICATION__BASE_URL: ${{ vars.APP_APPLICATION__BASE_URL }}
+          APP_REDIS_URI: ${{ vars.APP_REDIS_URI }}
+          APP_EMAIL_CLIENT__AUTH_TOKEN: ${{ secrets.APP_EMAIL_CLIENT__AUTH_TOKEN }}
+          APP_APPLICATION__HMAC_SECRET: ${{ secrets.APP_APPLICATION__HMAC_SECRET }}
+
+          RUST_LOG: ${{ vars.RUST_LOG }}
+
+          DB_DATA_LOCATION: ${{ secrets.DB_DATA_LOCATION }}
+          DB_BACKUP_LOCATION: ${{ secrets.DB_BACKUP_LOCATION }}
+        run: |
+          docker compose -f deployment/production.yml up -d --build --remove-orphans
