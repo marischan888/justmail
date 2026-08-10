@@ -1,2 +1,2 @@
-mod home;
-pub use home::home;
+mod home_page;
+pub use home_page::home;

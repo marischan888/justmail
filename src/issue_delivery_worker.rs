@@ -54,8 +54,8 @@ pub async fn try_execute_task(
     let (transaction, issue_id, email, attempts) = task.unwrap();
     let max_retries = 5;
     Span::current()
-        .record("newsletter_issue_id", &display(issue_id))
-        .record("subscriber_email", &display(&email));
+        .record("newsletter_issue_id", display(issue_id))
+        .record("subscriber_email", display(&email));
     match SubscriberEmail::parse(email.clone()) {
         Ok(email) => {
             let issue = get_issue(pool, issue_id).await?;

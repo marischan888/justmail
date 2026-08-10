@@ -7,7 +7,7 @@ use wiremock::{Mock, ResponseTemplate};
 #[tokio::test]
 async fn confirmation_without_token_are_rejected_with_a_link() {
     let app = spawn_app().await;
-    let response = reqwest::get(&format!("{}/subscriptions/confirm", app.address))
+    let response = reqwest::get(&format!("{}/subscription/confirm", app.address))
         .await
         .unwrap();
     assert_eq!(response.status().as_u16(), 400);
@@ -158,7 +158,7 @@ async fn confirming_link_should_be_expired_after_two_days() {
     // Act: Call the confirmation endpoint
     let response = reqwest::Client::new()
         .get(&format!(
-            "{}/subscriptions/confirm?subscription_token={}",
+            "{}/subscription/confirm?subscription_token={}",
             app.address, token
         ))
         .send()

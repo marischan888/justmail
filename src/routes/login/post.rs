@@ -48,7 +48,7 @@ pub async fn login(
     };
     match validate_credentials(credentials, &pool).await {
         Ok(user_id) => {
-            tracing::Span::current().record("userid", &tracing::field::display(&user_id));
+            tracing::Span::current().record("userid", tracing::field::display(&user_id));
             session.renew();
             session
                 .insert_user_id(user_id)
