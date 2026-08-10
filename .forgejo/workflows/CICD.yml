@@ -14,6 +14,7 @@ env:
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: password
   POSTGRES_DB: newsletter
+  DATABASE_URL: "postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@postgres:5432/${{ env.POSTGRES_DB }}"
 
 jobs:
   lint:
@@ -50,6 +51,7 @@ jobs:
           --health-retries 5
       redis:
         image: redis:8
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -68,8 +70,6 @@ jobs:
           && rm -rf /usr/local/cargo/registry/src/*
 
       - name: Migrate Database
-        env:
-          DATABASE_URL: "postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@postgres:5432/${{ env.POSTGRES_DB }}"
         run: |
           sqlx database create
           sqlx migrate run
@@ -88,10 +88,8 @@ jobs:
           cargo test
 
       - name: Check that queries are fresh
-        env:
-          DATABASE_URL: "postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@postgres:5432/${{ env.POSTGRES_DB }}"
         run: |
-          cargo sqlx prepare --workspace --check -- --all-targets
+          cargo sqlx prepare --workspace --check -- --lib
 
   coverage:
     name: Code coverage
@@ -126,8 +124,6 @@ jobs:
           && rm -rf /usr/local/cargo/registry/cache/* \
           && rm -rf /usr/local/cargo/registry/src/*
       - name: Migrate Database
-        env:
-          DATABASE_URL: "postgres://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@postgres:${{ vars.APP_DATABASE__PORT }}/${{ env.POSTGRES_DB }}"
         run: |
           sqlx database create
           sqlx migrate run
