@@ -119,18 +119,3 @@ justmail/
 - [ ] **Refactoring:** Migrate from monolith to micro-services architecture
       (confirmed).
 - [ ] **Features:** Unsubscription and user repository (pending)
-
----
-
-## 🛠️ Quick Start
-
-```bash
-# Clone the repository from Forgejo
-git clone [my-git]
-
-# Navigate into the project directory
-cd project-name
-
-# Run the project
-cargo build
-```
