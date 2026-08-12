@@ -67,6 +67,7 @@ pub async fn subscription_confirm(
             let confirm_result = if duration > TimeDelta::days(2) {
                 ConfirmLinkResult::LinkExpired
             } else {
+                // will not delete the token if confirmed and will not update the status
                 mark_subscriber_confirmed(&mut *transaction, token_record.subscriber_id)
                     .await
                     .context("Failed to mark subscriber as confirmed.")?
@@ -97,20 +98,6 @@ pub async fn subscription_confirm(
         }
         Err(_) => return Err(ConfirmError::UnknownToken),
     }
-}
-
-#[tracing::instrument(name = "Consume invalid tokens", skip(executor, subscription_token))]
-pub async fn consume_tokens(
-    executor: impl Executor<'_, Database = Postgres>,
-    subscription_token: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "DELETE FROM subscription_tokens WHERE subscription_token = $1",
-        subscription_token
-    )
-    .execute(executor)
-    .await?;
-    Ok(())
 }
 
 pub struct TokenRecord {
@@ -149,22 +136,6 @@ pub enum ConfirmLinkResult {
     AlreadyConfirm,
     LinkExpired,
 }
-
-//pub async fn remove_expired_token_record(
-//    executor: impl Executor<'_, Database=Postgres>,
-//    subscription_token: &str,
-//) -> Result<Action, sqlx::Error> {
-//    sqlx::query!(
-//        r#"
-//        DELETE FROM subscription_tokens
-//        WHERE subscription_token = $1
-//        "#,
-//        subscription_token,
-//    )
-//        .execute(executor)
-//        .await?;
-//    Ok(Action::LinkExpired)
-//}
 
 #[tracing::instrument(name = "Mark subscriber as confirmed", skip(executor, subscriber_id))]
 pub async fn mark_subscriber_confirmed(

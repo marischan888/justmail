@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
         outcome = worker_task => report_exit("Send email background work", outcome),
         outcome = token_worker_task => report_exit("Clear roken background work", outcome)
     };
-
+    //TODO: set up laptin for rabbit mq
     Ok(())
 }
 
