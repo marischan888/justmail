@@ -42,7 +42,7 @@ Communication occurs via **HTTPS REST calls**.
     it returns the saved response; otherwise, it enqueues the newsletter issue
     tasks for delivery.
 
-#### Subscriber Workflows
+#### Subscription endpoint
 
 - **`subscription`**
   - **Payload:** Subscriber email and name.
@@ -87,7 +87,7 @@ Communication occurs via **TCP connections (SQL)**.
 
 ### 5. Background Workers → External Email Client
 
-Communication occurs via **HTTPS REST calls**.
+Communication occurs via **outbound HTTPS REST calls**.
 
 - **Bulk Dispatch:** The `newsletter_issue_worker` processes queued issue tasks
   by calling the email client to deliver newsletters without blocking main web
