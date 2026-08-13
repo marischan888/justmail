@@ -48,8 +48,7 @@ Communication occurs via **HTTPS REST calls**.
   - **Payload:** Subscriber email and name.
   - **Flow:** Validates inputs, saves subscriber record in PostgreSQL, and
     generates a unique token. Immediately makes an outbound HTTP call to the
-    **External Email Client (Postmark)** to dispatch the double opt-in
-    confirmation link.
+    **Postmark** to dispatch the double opt-in confirmation link.
 - **`subscription confirmation`**
   - **Flow:** Verifies token existence and validity in PostgreSQL, updates
     subscriber status to confirmed.
@@ -69,8 +68,8 @@ Communication occurs via **TCP connections (SQL & Redis protocol)**.
 
 Communication occurs via **Outbound HTTPS REST calls**.
 
-- **Confirmation Link Delivery:** Send individual confirmation emails directly
-  to users without enqueueing them in background queues.
+- **Email Client:** Send individual confirmation emails directly to users
+  without enqueueing them in background queues.
 
 ---
 
