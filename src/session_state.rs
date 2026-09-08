@@ -1,7 +1,7 @@
 use actix_session::{Session, SessionExt, SessionGetError, SessionInsertError};
 use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpRequest};
-use std::future::{Ready, ready};
+use std::future::{ready, Ready};
 use uuid::Uuid;
 
 // Session wrapper following the actix-web extractors pattern
@@ -14,7 +14,7 @@ impl TypedSession {
     pub fn purge(&self) {
         self.0.purge();
     }
-
+    // renew the session id for safety purpose
     pub fn renew(&self) {
         self.0.renew();
     }

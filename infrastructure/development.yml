@@ -2,13 +2,14 @@ services:
   db:
     build:
       context: ..
-      dockerfile: deployment/postgres.Dockerfile
+      dockerfile: infrastructure/postgres.Dockerfile
     container_name: justmail-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      APP_DATABASE__USERNAME: ${APP_DATABASE__USERNAME}
-      APP_DATABASE__PASSWORD: ${APP_DATABASE__PASSWORD}
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=newsletter
+      - APP_DATABASE__USERNAME=postgres
+      - APP_DATABASE__PASSWORD=password
     ports:
       - "5432:5432"
     healthcheck:
@@ -32,8 +33,7 @@ services:
     container_name: justmail
     build:
       context: ..
-      dockerfile:
-        - development/justmail.Dockerfile
+      dockerfile: infrastructure/justmail.Dockerfile
     ports:
       - "8000:8000"
     environment:

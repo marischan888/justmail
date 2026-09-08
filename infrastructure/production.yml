@@ -3,8 +3,9 @@ services:
   db:
     build:
       context: ..
-      dockerfile: deployment/postgres.Dockerfile
+      dockerfile: infrastructure/postgres.Dockerfile
     container_name: justmail-postgres
+    restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -45,6 +46,7 @@ services:
 
   redis:
     image: redis:8
+    restart: always
     container_name: justmail-redis
     networks:
       - justmail
@@ -58,7 +60,7 @@ services:
     container_name: justmail-migrator
     build:
       context: ..
-      dockerfile: deployment/justmail.Dockerfile
+      dockerfile: infrastructure/justmail.Dockerfile
     environment:
       DATABASE_URL: postgres://${APP_DATABASE__USERNAME}:${APP_DATABASE__PASSWORD}@${APP_DATABASE__HOST}:${APP_DATABASE__PORT}/${APP_DATABASE__DATABASE_NAME}
     depends_on:
@@ -70,9 +72,10 @@ services:
 
   justmail:
     container_name: justmail
+    restart: always
     build:
       context: ..
-      dockerfile: deployment/justmail.Dockerfile
+      dockerfile: infrastructure/justmail.Dockerfile
     environment:
       APP_DATABASE__USERNAME: ${APP_DATABASE__USERNAME}
       APP_DATABASE__PASSWORD: ${APP_DATABASE__PASSWORD}
